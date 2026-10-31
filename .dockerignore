@@ -1,0 +1,19 @@
+# VCS and CI
+.git
+.github
+
+# Local environment and secrets
+.venv
+.env
+.env.*
+
+# Caches and build output
+__pycache__
+*.pyc
+.pytest_cache
+.ruff_cache
+.mypy_cache
+.hypothesis
+
+# Not needed in the image
+tests/

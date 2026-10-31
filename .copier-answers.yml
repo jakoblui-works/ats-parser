@@ -1,0 +1,7 @@
+# Changes here will be overwritten by Copier; never edit by hand.
+_commit: v0.1.2
+_src_path: gh:jakoblui-works/worker-template
+description: Taskiq worker for the ATS check
+domain: ats
+service_name: ats-service
+use_s3: true
