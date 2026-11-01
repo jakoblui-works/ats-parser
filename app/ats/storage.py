@@ -26,3 +26,8 @@ async def read_upload(key: str) -> bytes:
                 if len(data) > MAX_FILE_BYTES:
                     raise UploadTooLarge
     return bytes(data)
+
+
+async def delete_upload(key: str) -> None:
+    async with s3_client() as s3:
+        await s3.delete_object(Bucket=settings.s3.bucket, Key=key)

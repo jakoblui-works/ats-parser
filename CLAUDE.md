@@ -13,12 +13,13 @@ uv run python -m scripts.send_ping     # send a ping task to a running worker
 docker build -t ats-service:local .
 copier update --trust                  # pull template changes; commit first
 ```
-Tests need Postgres (CI: a `postgres:18` service; locally, the api repo's `compose.dev.yml` stack). They recreate a `ats_test` database.
+Tests need Postgres and Garage (locally, the api repo's `compose.dev.yml` stack). They recreate a `ats_test` database.
 
 ## Layout
 - `app/core/`: settings, broker, database, the declarative `Base`.
 - `app/health/`: the `ats.ping.v1` task. Entry points always live in `app/**/tasks.py`.
 - `app/storage/`: S3 client.
+- `app/ats/`: the `ats.parse.v1` task (`tasks.py`), and the parser, run on each upload in a child process (`sandbox.py`). The task deletes the file in every outcome.
 
 ## Contracts
 - **Owns** the `ats` schema. Every table lives in it (`Base` sets the schema), and Alembic only looks at it.

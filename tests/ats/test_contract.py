@@ -21,16 +21,19 @@ from types import ModuleType
 from typing import Any, get_args
 
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, TypeAdapter
 
+from app.ats import sandbox, tasks
 from app.ats import schemas as worker
 from app.ats.constants import MAX_PAGES
 from app.ats.parser import parse_pdf
 from app.ats.schemas import Parsed, ParseResult, Rejected
 from tests.ats import samples
+from tests.ats.stored import Store
 
 SNAPSHOT = Path(__file__).with_name("parse_result.schema.json")
 API_SCHEMAS = Path(__file__).resolve().parents[3] / "api" / "app" / "ats" / "schemas.py"
+API_SNAPSHOT = Path(__file__).resolve().parents[3] / "api" / "tests" / "ats" / "parse_result.schema.json"
 
 
 def load_api_schemas(path: Path) -> ModuleType:
@@ -153,3 +156,50 @@ def test_the_snapshot_covers_every_field_a_result_has() -> None:
 
     assert set(committed["properties"]) == set(ParseResult.model_fields)
     assert {"Contact", "Section", "Experience", "Education"} <= set(committed["$defs"])
+
+
+def _without_defaults(schema: object) -> object:
+    """The worker's models have defaults and the api's require every field; only names, types and values are shared."""
+    if isinstance(schema, dict):
+        return {k: _without_defaults(v) for k, v in schema.items() if k not in ("default", "required")}
+    if isinstance(schema, list):
+        return [_without_defaults(item) for item in schema]
+    return schema
+
+
+def test_the_workers_snapshot_has_the_same_shape_as_the_apis_snapshot() -> None:
+    if not API_SNAPSHOT.exists():
+        reason = f"the api repo isn't checked out beside this one ({API_SNAPSHOT} not found)"
+        if os.environ.get("CI"):
+            pytest.skip(reason)
+        pytest.fail(reason)
+
+    assert _without_defaults(json.loads(SNAPSHOT.read_text())) == _without_defaults(
+        json.loads(API_SNAPSHOT.read_text())
+    )
+
+
+@pytest.mark.asyncio
+async def test_what_the_task_returns_for_every_kind_of_file_validates_against_the_apis_outcome(
+    api: ModuleType, store: Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    adapter = TypeAdapter[Any](api.ParseOutcome)
+    files = [
+        samples.clean_pdf(),
+        samples.two_column_pdf(),
+        samples.scanned_pdf(),
+        samples.encrypted_pdf(),
+        samples.truncated_pdf(samples.clean_pdf()),
+        samples.pages_pdf(MAX_PAGES + 1),
+    ]
+    outcomes = [await tasks.parse({"key": await store.put(pdf)}) for pdf in files]
+
+    monkeypatch.setattr(sandbox, "CHILD_COMMAND", (sys.executable, "-c", "import time; time.sleep(60)"))
+    monkeypatch.setattr(sandbox, "PARSE_TIMEOUT_SECONDS", 0.3)
+    outcomes.append(await tasks.parse({"key": await store.put(samples.clean_pdf())}))
+
+    for outcome in outcomes:
+        validated = adapter.validate_python(outcome)
+        assert validated.model_dump(mode="json") == outcome
+    assert {o["reason"] for o in outcomes if o["outcome"] == "rejected"} == set(get_args(worker.RejectionReason))
+    assert {o["outcome"] for o in outcomes} == {"parsed", "rejected"}

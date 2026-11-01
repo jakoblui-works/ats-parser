@@ -1,13 +1,15 @@
 import signal
-from collections.abc import Awaitable, Callable, Iterator
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
 from contextlib import contextmanager
 from types import FrameType
 
 import pytest
+import pytest_asyncio
 
 from app.ats.parser import parse_pdf
 from app.ats.sandbox import parse_in_child
 from app.ats.schemas import Parsed, Rejected
+from tests.ats.stored import Store
 
 Parse = Callable[[bytes], Awaitable[Parsed | Rejected]]
 
@@ -49,3 +51,10 @@ async def _in_process(pdf: bytes) -> Parsed | Rejected:
 def parse(request: pytest.FixtureRequest) -> Parse:
     """Both ways of parsing a file give the same outcomes; the child is the production path."""
     return _in_process if request.param == "in_process" else parse_in_child
+
+
+@pytest_asyncio.fixture
+async def store() -> AsyncIterator[Store]:
+    store = Store()
+    yield store
+    await store.clean_up()

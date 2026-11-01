@@ -21,6 +21,7 @@ import logging
 import os
 import signal
 import sys
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 from weakref import WeakKeyDictionary
 
@@ -51,10 +52,19 @@ class ParserFailed(Exception):
 
 async def parse_in_child(pdf: bytes, *, time_limit: float = PARSE_TIMEOUT_SECONDS) -> ParseOutcome:
     """Raises ParserFailed if the child is broken; a bad file only ever gives a Rejected."""
-    # Per loop: a semaphore belongs to the first loop that waits on it.
-    slots = _slots.setdefault(asyncio.get_running_loop(), asyncio.Semaphore(MAX_CONCURRENT_PARSES))
-    async with slots:
+    async with _slot():
         return await _run_child(pdf, time_limit)
+
+
+async def parse_stored(read: Callable[[], Awaitable[bytes]]) -> ParseOutcome:
+    """parse_in_child, reading the file only once there's a slot, so tasks waiting for one don't each hold a PDF."""
+    async with _slot():
+        return await _run_child(await read(), PARSE_TIMEOUT_SECONDS)
+
+
+def _slot() -> asyncio.Semaphore:
+    # Per loop: a semaphore belongs to the first loop that waits on it.
+    return _slots.setdefault(asyncio.get_running_loop(), asyncio.Semaphore(MAX_CONCURRENT_PARSES))
 
 
 async def _run_child(pdf: bytes, time_limit: float) -> ParseOutcome:
