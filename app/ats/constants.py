@@ -130,20 +130,34 @@ LINK = re.compile(
     re.IGNORECASE,
 )
 
-# Experience. A date range is what makes a line a job, so a year in a sentence isn't one. Dates are `Jan 2020`,
-# `January 2020`, `03/2020` or `2020`; the end can also be `Present`. Gaps between tokens are bounded.
+# Experience. A date range is what makes a line a job, so a year in a sentence isn't one. Gaps are bounded and nothing
+# nests, so this stays linear. `experience.py` checks that two-digit years pair up.
 _MONTH_NAME = (
     r"jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?"
     r"|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?"
 )
-_DATE = rf"(?:(?:{_MONTH_NAME})\s{{1,3}}|\d{{1,2}}/)?(?:19|20)\d{{2}}"
-PRESENT = "present"
+_GAP = r"\s{1,3}"
+_FULL_YEAR = r"(?:19|20)\d{2}"
+_DATE = (
+    # 15 Mar 2026, Mar. 2026, Mar, 2026, Mar 15, 2026
+    rf"(?:(?:\d{{1,2}}{_GAP})?(?:{_MONTH_NAME})\.?(?:,?{_GAP}|{_GAP}\d{{1,2}},{_GAP}){_FULL_YEAR}"
+    rf"|(?:{_MONTH_NAME})\.?{_GAP}['\u2019]?\d{{2}}"  # Mar '26, Mar 26
+    rf"|\d{{1,2}}[/.-]{_FULL_YEAR}|\d{{2}}/\d{{2}}"  # 03/2026, 3/2026, 03.2026, 03-2026, 03/26
+    rf"|{_FULL_YEAR}(?:-(?:0[1-9]|1[0-2])(?!\d))?)"  # 2026, 2026-03
+)
+_ONGOING = rf"present|current|now|today|ongoing|to{_GAP}date"
+ONGOING = re.compile(_ONGOING, re.IGNORECASE)
+_SEPARATOR = r"[-\u2012-\u2015\u2212]|to|until|till"
 DATE_RANGE = re.compile(
-    rf"(?<![\w/.-])(?P<start>{_DATE})\s{{0,3}}(?:[-\u2012-\u2015\u2212]|to)\s{{0,3}}"
-    rf"(?P<end>{_DATE}|{PRESENT})(?![\w/-])",
+    rf"(?<![\w/.-])(?P<start>{_DATE})\s{{0,3}}(?:(?:{_SEPARATOR})\s{{0,3}}|(?=to{_GAP}date))"
+    rf"(?P<end>{_DATE}|{_ONGOING})(?![\w/-])",
     re.IGNORECASE,
 )
-DATE_PARTS = re.compile(rf"(?:({_MONTH_NAME})\s{{1,3}}|(\d{{1,2}})/)?((?:19|20)\d{{2}})", re.IGNORECASE)
+# Only ever reads text DATE_RANGE has matched, so it can be loose: a `2026-03`, or a day, a month and a year.
+DATE_PARTS = re.compile(
+    rf"(\d{{4}})-(\d{{2}})|(?:\d{{1,2}}\s+)?(?:({_MONTH_NAME})\W*(?:\d{{1,2}},\s+)?|(\d{{1,2}})[/.-])?(\d{{2,4}})",
+    re.IGNORECASE,
+)
 MONTH_NUMBERS = {
     name: number for number, name in enumerate("jan feb mar apr may jun jul aug sep oct nov dec".split(), 1)
 }

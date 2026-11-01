@@ -9,9 +9,10 @@ from app.ats.constants import (
     MAX_EXPERIENCE_ENTRIES,
     MAX_LINE_CHARS,
     MONTH_NUMBERS,
-    PRESENT,
+    ONGOING,
     TITLE_EDGES,
     TITLE_LINES_ABOVE,
+    YEAR,
 )
 from app.ats.schemas import Experience
 
@@ -42,12 +43,21 @@ def total_months(entries: list[Experience], today: date) -> int | None:
 
 def _span(start: str, end: str, today: date) -> tuple[int, int] | None:
     """A range as month numbers, the end excluded, or None if it can't be read or runs backwards."""
+    ongoing = bool(ONGOING.fullmatch(end))
+    if not _years_are_clear(start, end, ongoing):
+        return None
     first = _month_number(start)
     now = today.year * 12 + today.month
-    last = now if end.casefold() == PRESENT else _month_number(end, after=True)
+    last = now if ongoing else _month_number(end, after=True)
     if first is None or last is None or first >= now:  # `now` is next month: a job that hasn't started isn't one.
         return None
     return (first, min(last, now)) if first <= last else None  # Months that haven't happened don't count.
+
+
+def _years_are_clear(start: str, end: str, ongoing: bool) -> bool:
+    """A two-digit year needs another one, or an ongoing end, beside it: `Mar 15 - Apr 2, 2026` has a day in it."""
+    full_years = [bool(YEAR.search(date)) for date in ((start,) if ongoing else (start, end))]
+    return all(full_years) or not any(full_years)
 
 
 def _month_number(written: str, *, after: bool = False) -> int | None:
@@ -56,11 +66,13 @@ def _month_number(written: str, *, after: bool = False) -> int | None:
     parts = DATE_PARTS.fullmatch(written)
     if not parts:
         return None
-    name, number, year = parts.groups()
+    year_first, month_second, name, number, year = parts.groups()
+    year, number = year_first or year, month_second or number
+    months = (int(year) + (2000 if len(year) == 2 else 0)) * 12
     if not name and not number:
-        return int(year) * 12
+        return months
     month = MONTH_NUMBERS[name[:3].casefold()] if name else int(number)
-    return int(year) * 12 + month - 1 + after if 1 <= month <= 12 else None
+    return months + month - 1 + after if 1 <= month <= 12 else None
 
 
 def _title_beside(line: str, start: int, end: int) -> str | None:

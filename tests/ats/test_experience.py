@@ -8,6 +8,7 @@ from hypothesis import strategies as st
 
 from app.ats.constants import MAX_EXPERIENCE_ENTRIES
 from app.ats.experience import extract_experience, total_months
+from app.ats.fields import extract_contact
 from app.ats.parser import parse_pdf
 from app.ats.schemas import Experience, Parsed
 from app.ats.sections import heading_kind
@@ -158,6 +159,124 @@ def test_a_range_ending_in_the_future_counts_only_to_today() -> None:
 def test_a_range_wholly_in_the_future_gives_no_entry() -> None:
     for line in ("Jul 2026 - Dec 2027", "01/2027 - 06/2028", "2027 - 2028", "Jan 2030 - Present"):
         assert extract_experience([line], TODAY) == [], line
+
+
+# --- Date formats ---
+
+# (as written, year, month): the month each form means, so a form read as the wrong month fails.
+FORMS = [
+    ("Mar. 2026", 2026, 3),
+    ("Sept. 2020", 2020, 9),
+    ("Mar, 2026", 2026, 3),
+    ("15 Mar 2026", 2026, 3),
+    ("Mar 15, 2026", 2026, 3),
+    ("03/2026", 2026, 3),
+    ("3/2026", 2026, 3),
+    ("03.2026", 2026, 3),
+    ("03-2026", 2026, 3),
+    ("2026-03", 2026, 3),
+]
+
+
+def test_each_form_works_as_a_start_with_the_right_month_and_comes_back_as_written() -> None:
+    for form, year, month in FORMS:
+        entry = _one(f"{form} - Present")
+
+        assert entry.start == form
+        assert entry.months == (TODAY.year - year) * 12 + TODAY.month - month + 1, form
+
+
+def test_each_form_works_as_an_end_with_the_right_month_and_comes_back_as_written() -> None:
+    for form, year, month in FORMS:
+        entry = _one(f"Jan {year} - {form}")
+
+        assert entry.end == form
+        assert entry.months == month, form  # January to that month, both counted.
+
+
+def test_every_ongoing_word_ends_a_range_in_any_case() -> None:
+    for word in ("Present", "Current", "Now", "Today", "Ongoing", "to date", "PRESENT", "current", "To Date"):
+        entry = _one(f"Jan 2026 - {word}")
+
+        assert entry.end == word
+        assert entry.months == TODAY.month, word
+
+
+def test_every_separator_works_with_and_without_spaces() -> None:
+    for sep in ("-", "\u2013", "\u2014", "to", "until", "till"):
+        for gap in (" ", ""):
+            assert _one(f"Jan 2026{gap}{sep}{gap}Mar 2026").months == 3, (sep, gap)
+    assert _one("Jan 2026 to date").months == TODAY.month
+
+
+def test_two_digit_years_count_when_both_ends_are_two_digit_and_read_the_right_year() -> None:
+    for line, months in [
+        ("Mar '25 - Present", 22),
+        ("Mar \u201925 - Now", 22),
+        ("03/25 - Present", 22),
+        ("Mar 25 - Aug 26", 18),
+        ("03/25 - 08/26", 18),
+    ]:
+        assert _one(line, today=date(2026, 12, 1)).months == months, line  # A later today, so Aug 26 isn't capped.
+
+
+def test_two_digit_years_that_are_not_dates_do_not_make_a_job() -> None:
+    for line in (
+        "Mar 25 - 2026",
+        "Mar 15 - Apr 2, 2026",
+        "Grade 9/10 - Present",
+        "Grade 9/10 - 11/12",
+        "13/25 - Present",
+    ):
+        assert extract_experience([line], TODAY) == [], line
+
+
+def test_a_year_range_without_spaces_is_one_and_lone_or_malformed_dates_are_not() -> None:
+    assert _one("2012-2016").months == 48
+    for line in (
+        "2020-13",
+        "2026-03",
+        "Mar 2026",
+        "Jan 20",
+        "Promoted to Lead in Mar. 2026, after 6 months.",
+    ):
+        assert extract_experience([line], TODAY) == [], line
+
+
+def test_a_cv_layout_with_a_company_line_a_promotion_sentence_and_two_employers() -> None:
+    lines = [
+        "Widgetco | Full Time Lakeside, Exampleland",
+        "Lead Developer Mar. 2026\u2013Aug. 2026",
+        "Backend Developer Sep. 2025\u2013Feb. 2026",
+        "Promoted from Backend Developer to Lead Developer in Mar. 2026, after 6 months.",
+        "\u2022 Did a thing.",
+        "Gadgetco | Part Time Harbourtown, Exampleland",
+        "Developer Jan 2023 \u2013 Jun 2023",
+        "Intern Jul 2022 \u2013 Dec 2022",
+    ]
+    today = date(2026, 12, 1)
+    entries = extract_experience(lines, today)
+
+    assert [(e.title, e.months) for e in entries] == [
+        ("Lead Developer", 6),
+        ("Backend Developer", 6),
+        ("Developer", 6),
+        ("Intern", 6),
+    ]
+    assert total_months(entries, today) == 12 + 12
+
+
+def test_a_date_range_in_the_new_forms_is_not_a_phone_number() -> None:
+    for line in (
+        "Mar. 2026 - Aug. 2026",
+        "03.2026 - 08.2026",
+        "03-2026 - 08-2026",
+        "2026-03 - 2026-08",
+        "Mar 15, 2026 - Apr 2, 2026",
+        "03/25 - 08/26",
+        "2012-2016",
+    ):
+        assert extract_contact([line]).phone is None, line
 
 
 # --- Titles ---
