@@ -33,23 +33,24 @@ async def test_the_clean_sample_gives_the_right_answers_and_no_warnings(parse: P
     assert isinstance(outcome, Parsed)
     result = outcome.result
 
+    assert result.contact.name == CV.name
     assert result.contact.email == CV.email
     assert result.contact.phone == CV.phone
     assert result.contact.links == list(CV.links)
+    assert result.contact.location is None
     assert [(section.kind, section.heading) for section in result.sections] == samples.expected_sections()
     assert result.warnings == []
     assert [entry.model_dump() for entry in result.experience] == samples.expected_experience()
     assert result.experience_months == samples.expected_experience_months()
+    assert [entry.model_dump() for entry in result.education] == samples.expected_education()
+    assert result.skills == samples.expected_skills()
 
 
-def test_the_dropped_fields_are_null_or_empty_and_never_warned_about() -> None:
+def test_location_stays_null_and_the_dropped_warnings_are_never_given() -> None:
     for pdf in (samples.clean_pdf(), samples.two_column_pdf(), samples.scanned_pdf()):
         result = _result(pdf)
 
-        assert result.contact.name is None
         assert result.contact.location is None
-        assert result.education == []
-        assert result.skills == []
         assert "scrambled_order" not in result.warnings
         assert "unparsed_dates" not in result.warnings
 

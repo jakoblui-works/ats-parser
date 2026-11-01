@@ -196,13 +196,26 @@ def expected_experience(cv: CvData = CV) -> list[dict[str, object]]:
     return [
         {
             "title": job.title,
-            "company": None,
+            "company": job.company,
             "start": job.start,
             "end": job.end,
             "months": _month_index(job.end) - _month_index(job.start) + 1,
         }
         for job in cv.experience
     ]
+
+
+def expected_education(cv: CvData = CV) -> list[dict[str, object]]:
+    """The degrees the clean layout prints, dates as written."""
+    return [
+        {"institution": d.institution, "qualification": d.qualification, "start": d.start, "end": d.end}
+        for d in cv.education
+    ]
+
+
+def expected_skills(cv: CvData = CV) -> list[str]:
+    """In the order they're printed; the sample's are all known terms or listed under the heading, once each."""
+    return list(cv.skills)
 
 
 def expected_experience_months(cv: CvData = CV) -> int | None:

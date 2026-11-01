@@ -165,4 +165,85 @@ MONTH_NUMBERS = {
 TITLE_EDGES = " ()[]|,;:/-\u2012\u2013\u2014\u2015\u2212\u2022\u00b7"
 TITLE_LINES_ABOVE = 2
 # A line starting like this, or ending in a full stop, is a bullet or a sentence: neither a job nor a title.
-BULLETS = ("\u2022", "\u00b7", "\u25aa", "\u25cf", "*", "-")
+BULLETS = ("\u2022", "\u00b7", "\u25aa", "\u25cf", "\uf0b7", "*", "-", "\u2013")
+
+# Name, employer, education. The separators a CV puts between things on a line. A comma isn't one: it's too often part
+# of the value (`University of California, Berkeley`, `Acme Ltd, London`).
+ENTRY_SEPARATOR = re.compile(r"\s{1,5}(?:[|•·–—-]|at)\s{1,5}")
+CV_LABEL = re.compile(r"\b(?:curriculum\s{1,3}vitae|cv|r[eé]sum[eé])\b", re.IGNORECASE)
+MIN_NAME_WORDS, MAX_NAME_WORDS = 2, 4
+NAME_PUNCTUATION = "'’.-"
+# Past this a line isn't an employer, an institution or a qualification.
+MAX_ENTRY_CHARS = 70
+MAX_EDUCATION_ENTRIES = 20
+INSTITUTION = re.compile(r"\b(?:university|college|school|institute|academy)\b", re.IGNORECASE)
+# A year alone, with any month in front of it, so the month isn't left behind as text.
+LONE_YEAR = re.compile(
+    rf"(?<![\w/.-])(?:(?:{_MONTH_NAME})\.?,?{_GAP}|\d{{1,2}}[/.-])?(?P<year>{_FULL_YEAR})(?![\w/-])", re.IGNORECASE
+)
+
+# Skills. Terms that are also ordinary words are left out, in the fuller spelling where there is one (`Microsoft Word`),
+# so they only come from a `skills` heading. Each term's spelling here is the one the result uses.
+KNOWN_SKILLS = (
+    # Languages
+    "Python", "Java", "JavaScript", "TypeScript", "C++", "C#", "PHP", "Ruby", "Kotlin", "Scala", "Perl", "MATLAB",
+    "SAS", "Objective-C", "Bash", "PowerShell", "SQL", "T-SQL", "PL/SQL", "HTML", "HTML5", "CSS", "CSS3", "Sass",
+    # Web and backend
+    "React", "React Native", "Next.js", "Vue", "Vue.js", "Angular", "jQuery", "Tailwind CSS", "Bootstrap",
+    "Node.js", "Express.js", "Django", "FastAPI", "Flask", "Spring Boot", "Ruby on Rails", "Laravel", ".NET",
+    "ASP.NET", "GraphQL", "REST API", "RESTful", "gRPC", "Microservices", "Flutter",
+    # Data
+    "PostgreSQL", "MySQL", "SQLite", "SQL Server", "MongoDB", "Redis", "Elasticsearch", "NoSQL", "Oracle", "Kafka",
+    "Airflow", "dbt", "Databricks", "Snowflake", "BigQuery", "Hadoop", "Spark", "Pandas", "NumPy", "PyTorch",
+    "TensorFlow", "scikit-learn", "Jupyter", "Power BI", "Tableau", "Looker", "Machine learning", "Deep learning",
+    "Data analysis", "Data science", "Data engineering", "Data modelling", "Data modeling", "Data visualisation",
+    "Data visualization", "ETL", "A/B testing", "NLP",
+    # Infrastructure and practice
+    "AWS", "Azure", "GCP", "Google Cloud", "Docker", "Kubernetes", "Terraform", "Ansible", "Jenkins",
+    "GitHub Actions", "Git", "GitHub", "GitLab", "Linux", "Unix", "macOS", "Nginx", "CI/CD", "DevOps", "Prometheus",
+    "Grafana", "TDD", "Unit testing", "Selenium", "Playwright", "Cypress", "Jest", "pytest", "Postman", "Agile",
+    "Scrum", "Kanban", "Cybersecurity",
+    # Design
+    "Figma", "Photoshop", "Adobe Illustrator", "InDesign", "Adobe XD", "After Effects", "Premiere Pro", "Canva",
+    "AutoCAD", "UX design", "UI design", "User research", "Wireframing", "Prototyping", "Typography",
+    # Business
+    "Project management", "Product management", "Stakeholder management", "Change management", "Risk management",
+    "Team management", "People management", "Account management", "Supply chain management", "Business analysis",
+    "Financial analysis", "Financial modelling", "Budgeting", "Forecasting", "Bookkeeping", "Accounting",
+    "Auditing", "Digital marketing", "Content marketing", "Email marketing", "Social media marketing", "SEO", "SEM",
+    "Copywriting", "Technical writing", "Market research", "Customer service", "Negotiation", "Public speaking",
+    "Recruitment", "PMP", "Six Sigma", "GDPR",
+    # Office and business tools
+    "Excel", "Microsoft Word", "MS Word", "Microsoft Office", "MS Office", "Microsoft 365", "Microsoft Outlook",
+    "Microsoft Teams", "PowerPoint",
+    "SharePoint", "Power Query", "Google Sheets", "Google Docs", "Google Analytics", "Google Ads", "Slack",
+    "Notion", "Jira", "Confluence", "Trello", "Asana", "Salesforce", "HubSpot", "Zendesk", "Mailchimp", "WordPress",
+    "Shopify", "SAP", "Workday", "NetSuite", "QuickBooks",
+)  # fmt: skip
+# These would match an ordinary word in lower case: `react quickly`, `excel at`, `in jest`, `angular momentum`.
+EXACT_CASE_SKILLS = (
+    "React", "Excel", "Slack", "Spark", "Notion", "Playwright", "Postman", "Workday", "Jest", "Flask", "Cypress",
+    "Selenium", "Airflow", "Bootstrap", "Angular", "Ruby", "Jenkins", "Bash", "SAP", "SAS", "SEM", "Agile", "Docker",
+)  # fmt: skip
+MAX_SKILLS = 100
+MAX_SKILL_CHARS = 40
+MAX_SKILL_WORDS = 4
+
+
+def _skill_pattern(skill: str) -> str:
+    term = re.escape(skill).replace(r"\ ", rf"{_GAP}")
+    return f"(?-i:{term})" if skill in EXACT_CASE_SKILLS else term
+
+
+# One alternation, longest first, tried once at each position: no quantifier here can run on. `Java` stops at the `S`
+# of `JavaScript` by the look-ahead, and `Java.` at the end of a sentence still matches.
+KNOWN_SKILL = re.compile(
+    r"(?<![\w.#+-])(?:"
+    + "|".join(_skill_pattern(skill) for skill in sorted(KNOWN_SKILLS, key=len, reverse=True))
+    + r")(?![\w#+@]|\.\w)",
+    re.IGNORECASE,
+)
+# Between items under a `skills` heading. A plain `/` isn't one: `CI/CD`, `TCP/IP`.
+# Brackets stay: `Spanish (B2)`.
+SKILL_EDGES = TITLE_EDGES.replace("()", "") + "".join(BULLETS)
+SKILL_SEPARATOR = re.compile(r"[,;|•·▪●\t]|\s{1,5}[/–—-]\s{1,5}")

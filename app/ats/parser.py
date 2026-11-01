@@ -3,11 +3,13 @@
 from datetime import date
 
 from app.ats.constants import MIN_READABLE_CHARS_PER_PAGE, UNMAPPED_CHARACTER
+from app.ats.education import extract_education
 from app.ats.experience import extract_experience, total_months
 from app.ats.extraction import ExtractedPage, ExtractedText, Rejection, extract_text
 from app.ats.fields import extract_contact
-from app.ats.schemas import Contact, Parsed, ParseResult, Rejected, Section, Visibility, WarningCode
+from app.ats.schemas import Contact, Parsed, ParseResult, Rejected, Section, SectionKind, Visibility, WarningCode
 from app.ats.sections import find_sections
+from app.ats.skills import extract_skills
 
 
 def parse_pdf(pdf: bytes) -> Parsed | Rejected:
@@ -61,6 +63,10 @@ def _readable_chars(page: ExtractedPage) -> int:
     return sum(not char.isspace() for char in UNMAPPED_CHARACTER.sub("", page.text))
 
 
+def _section_lines(sections: list[Section], kind: SectionKind) -> list[str]:
+    return "\n\n".join(section.text for section in sections if section.kind == kind).split("\n")
+
+
 def _to_result(extracted: ExtractedText) -> ParseResult:
     visibility = classify_visibility(extracted.pages)
     text = extracted.text
@@ -68,8 +74,7 @@ def _to_result(extracted: ExtractedText) -> ParseResult:
     sections = find_sections(lines)
     contact = extract_contact(lines)
     today = date.today()
-    experience_text = "\n\n".join(section.text for section in sections if section.kind == "experience")
-    experience = extract_experience(experience_text.split("\n"), today)
+    experience = extract_experience(_section_lines(sections, "experience"), today)
     return ParseResult(
         visibility=visibility,
         page_count=len(extracted.pages),
@@ -79,5 +84,7 @@ def _to_result(extracted: ExtractedText) -> ParseResult:
         sections=sections,
         experience=experience,
         experience_months=total_months(experience, today),
+        education=extract_education(_section_lines(sections, "education")),
+        skills=extract_skills(lines),
         warnings=find_warnings(extracted.pages, visibility, contact, sections),
     )

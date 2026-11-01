@@ -84,15 +84,15 @@ def test_every_parsed_outcome_validates_against_the_apis_model(api: ModuleType, 
     assert payload["outcome"] == "parsed"
     result = api.ParseResult.model_validate(payload["result"])
     assert result.model_dump() == payload["result"]  # Nothing dropped or reshaped on the way through.
-    # The contract keeps the fields the parser no longer fills; they come back null or empty.
-    assert payload["result"]["contact"]["name"] is None
-    assert payload["result"]["contact"]["location"] is None
-    assert payload["result"]["education"] == payload["result"]["skills"] == []
-    if name == "clean":
-        assert payload["result"]["experience"]  # Filled now, and the api's model accepts the new fields.
-        assert payload["result"]["experience_months"] is not None
+    assert payload["result"]["contact"]["location"] is None  # The only field the parser still leaves empty.
+    if name == "clean":  # Filled, and the api's model accepts every field.
+        assert payload["result"]["contact"]["name"] == samples.CV.name
+        assert payload["result"]["experience"] and payload["result"]["experience_months"] is not None
+        assert all(entry["company"] for entry in payload["result"]["experience"])
+        assert payload["result"]["education"] and payload["result"]["skills"]
     else:
         assert payload["result"]["experience"] == [] and payload["result"]["experience_months"] is None
+        assert bool(payload["result"]["skills"]) == (name == "two-column")
 
 
 def test_every_rejected_outcome_maps_to_a_reason_the_api_knows(api: ModuleType) -> None:
