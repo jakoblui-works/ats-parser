@@ -142,6 +142,18 @@
           "default": null,
           "title": "End"
         },
+        "months": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Months"
+        },
         "start": {
           "anyOf": [
             {
@@ -231,6 +243,18 @@
       },
       "title": "Experience",
       "type": "array"
+    },
+    "experience_months": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Experience Months"
     },
     "page_count": {
       "title": "Page Count",

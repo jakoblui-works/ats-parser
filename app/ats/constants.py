@@ -33,6 +33,7 @@ UNMAPPED_CHARACTER = re.compile(r"\(cid:\d+\)")
 # Stages only ever look at this much of a line, and keep this many links: enough for a CV, and it caps their work.
 MAX_LINE_CHARS = 300
 MAX_LINKS = 20
+MAX_EXPERIENCE_ENTRIES = 50
 
 # Headings as they're written, compared once normalised ("&" as "and", punctuation dropped, any case), against a whole
 # line. "other" is for headings with no field of their own, so that they end the section before them.
@@ -62,12 +63,12 @@ HEADINGS: dict[SectionKind, tuple[str, ...]] = {
         "work history",
         "career history",
         "professional background",
-        "experience and education",
     ),
     "education": (
         "education",
         "education and training",
         "education and qualifications",
+        "experience and education",
         "educational background",
         "academic background",
         "academic qualifications",
@@ -128,3 +129,26 @@ LINK = re.compile(
     r"(?<![@\w.-])(?:https?://|www\.|(?:[a-z]{2,3}\.)?(?:linkedin|github|gitlab|bitbucket)\.com/)[^\s|,;<>()\"']{1,200}",
     re.IGNORECASE,
 )
+
+# Experience. A date range is what makes a line a job, so a year in a sentence isn't one. Dates are `Jan 2020`,
+# `January 2020`, `03/2020` or `2020`; the end can also be `Present`. Gaps between tokens are bounded.
+_MONTH_NAME = (
+    r"jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?"
+    r"|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?"
+)
+_DATE = rf"(?:(?:{_MONTH_NAME})\s{{1,3}}|\d{{1,2}}/)?(?:19|20)\d{{2}}"
+PRESENT = "present"
+DATE_RANGE = re.compile(
+    rf"(?<![\w/.-])(?P<start>{_DATE})\s{{0,3}}(?:[-\u2012-\u2015\u2212]|to)\s{{0,3}}"
+    rf"(?P<end>{_DATE}|{PRESENT})(?![\w/-])",
+    re.IGNORECASE,
+)
+DATE_PARTS = re.compile(rf"(?:({_MONTH_NAME})\s{{1,3}}|(\d{{1,2}})/)?((?:19|20)\d{{2}})", re.IGNORECASE)
+MONTH_NUMBERS = {
+    name: number for number, name in enumerate("jan feb mar apr may jun jul aug sep oct nov dec".split(), 1)
+}
+# Separators left around a title once the dates are gone.
+TITLE_EDGES = " ()[]|,;:/-\u2012\u2013\u2014\u2015\u2212\u2022\u00b7"
+TITLE_LINES_ABOVE = 2
+# A line starting like this, or ending in a full stop, is a bullet or a sentence: neither a job nor a title.
+BULLETS = ("\u2022", "\u00b7", "\u25aa", "\u25cf", "*", "-")

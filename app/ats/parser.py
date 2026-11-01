@@ -1,6 +1,9 @@
 """The parser's stages, in order. Runs inside the child, so a slow stage is stopped by the same time limit."""
 
+from datetime import date
+
 from app.ats.constants import MIN_READABLE_CHARS_PER_PAGE, UNMAPPED_CHARACTER
+from app.ats.experience import extract_experience, total_months
 from app.ats.extraction import ExtractedPage, ExtractedText, Rejection, extract_text
 from app.ats.fields import extract_contact
 from app.ats.schemas import Contact, Parsed, ParseResult, Rejected, Section, Visibility, WarningCode
@@ -64,6 +67,9 @@ def _to_result(extracted: ExtractedText) -> ParseResult:
     lines = extracted.lines
     sections = find_sections(lines)
     contact = extract_contact(lines)
+    today = date.today()
+    experience_text = "\n\n".join(section.text for section in sections if section.kind == "experience")
+    experience = extract_experience(experience_text.split("\n"), today)
     return ParseResult(
         visibility=visibility,
         page_count=len(extracted.pages),
@@ -71,5 +77,7 @@ def _to_result(extracted: ExtractedText) -> ParseResult:
         text=text,
         contact=contact,
         sections=sections,
+        experience=experience,
+        experience_months=total_months(experience, today),
         warnings=find_warnings(extracted.pages, visibility, contact, sections),
     )

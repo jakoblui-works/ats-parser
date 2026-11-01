@@ -183,6 +183,34 @@ def expected_sections(cv: CvData = CV) -> list[tuple[str, str]]:
     return [(kind, cv.headings[kind]) for kind, lines in found if lines]
 
 
+def _month_index(written: str) -> int:
+    """'Jan 2020' as months since year 0. Its own tiny reader, not the parser's."""
+    name, year = written.split()
+    return int(year) * 12 + ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].index(
+        name
+    )
+
+
+def expected_experience(cv: CvData = CV) -> list[dict[str, object]]:
+    """The jobs the clean layout prints (title, start, end as written; months with both end months counted)."""
+    return [
+        {
+            "title": job.title,
+            "company": None,
+            "start": job.start,
+            "end": job.end,
+            "months": _month_index(job.end) - _month_index(job.start) + 1,
+        }
+        for job in cv.experience
+    ]
+
+
+def expected_experience_months(cv: CvData = CV) -> int | None:
+    """The total, for jobs that neither overlap nor touch (the sample's don't)."""
+    jobs = expected_experience(cv)
+    return sum(int(str(job["months"])) for job in jobs) if jobs else None
+
+
 def _font(style: LineStyle) -> tuple[str, int]:
     return {"name": ("Helvetica-Bold", 18), "heading": ("Helvetica-Bold", 12), "text": ("Helvetica", 10)}[style]
 

@@ -35,6 +35,7 @@ class Experience(BaseModel):
     company: str | None = None
     start: str | None = None
     end: str | None = None
+    months: int | None = None
 
 
 class Education(BaseModel):
@@ -52,6 +53,7 @@ class ParseResult(BaseModel):
     contact: Contact = Contact()
     sections: list[Section] = []
     experience: list[Experience] = []
+    experience_months: int | None = None
     education: list[Education] = []
     skills: list[str] = []
     warnings: list[WarningCode] = []

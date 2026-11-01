@@ -38,6 +38,8 @@ async def test_the_clean_sample_gives_the_right_answers_and_no_warnings(parse: P
     assert result.contact.links == list(CV.links)
     assert [(section.kind, section.heading) for section in result.sections] == samples.expected_sections()
     assert result.warnings == []
+    assert [entry.model_dump() for entry in result.experience] == samples.expected_experience()
+    assert result.experience_months == samples.expected_experience_months()
 
 
 def test_the_dropped_fields_are_null_or_empty_and_never_warned_about() -> None:
@@ -46,7 +48,6 @@ def test_the_dropped_fields_are_null_or_empty_and_never_warned_about() -> None:
 
         assert result.contact.name is None
         assert result.contact.location is None
-        assert result.experience == []
         assert result.education == []
         assert result.skills == []
         assert "scrambled_order" not in result.warnings

@@ -87,7 +87,12 @@ def test_every_parsed_outcome_validates_against_the_apis_model(api: ModuleType, 
     # The contract keeps the fields the parser no longer fills; they come back null or empty.
     assert payload["result"]["contact"]["name"] is None
     assert payload["result"]["contact"]["location"] is None
-    assert payload["result"]["experience"] == payload["result"]["education"] == payload["result"]["skills"] == []
+    assert payload["result"]["education"] == payload["result"]["skills"] == []
+    if name == "clean":
+        assert payload["result"]["experience"]  # Filled now, and the api's model accepts the new fields.
+        assert payload["result"]["experience_months"] is not None
+    else:
+        assert payload["result"]["experience"] == [] and payload["result"]["experience_months"] is None
 
 
 def test_every_rejected_outcome_maps_to_a_reason_the_api_knows(api: ModuleType) -> None:
