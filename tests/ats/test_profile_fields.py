@@ -1,4 +1,4 @@
-"""Name, employer, education and skills, read from lines of invented CVs. Rules are general, not tuned to one CV."""
+"""Name, employer and education, read from lines of invented CVs. Rules are general, not tuned to one CV."""
 
 import pytest
 from hypothesis import HealthCheck, given, settings
@@ -6,11 +6,8 @@ from hypothesis import strategies as st
 
 from app.ats import constants
 from app.ats.constants import (
-    EXACT_CASE_SKILLS,
-    KNOWN_SKILLS,
     MAX_EDUCATION_ENTRIES,
     MAX_ENTRY_CHARS,
-    MAX_SKILLS,
     MAX_TEXT_CHARS,
 )
 from app.ats.education import extract_education
@@ -18,7 +15,6 @@ from app.ats.experience import extract_experience
 from app.ats.fields import extract_contact
 from app.ats.parser import parse_pdf
 from app.ats.schemas import Experience, Parsed
-from app.ats.skills import extract_skills
 from tests.ats import samples
 from tests.ats.conftest import deadline
 from tests.ats.test_experience import TODAY
@@ -187,83 +183,6 @@ def test_an_education_entry_with_a_missing_part_stays(
     assert entry.end is not None
 
 
-# --- Skills ---
-
-
-def test_each_known_term_is_found_in_its_listed_spelling_wherever_it_is_written() -> None:
-    for skill in KNOWN_SKILLS:
-        assert extract_skills([f"Worked with {skill} daily"]) == [skill], skill
-        assert extract_skills([f"Worked with {skill}."]) == [skill], skill
-        if skill not in EXACT_CASE_SKILLS:
-            assert extract_skills([f"worked with {skill.lower()} daily"]) == [skill], skill
-
-
-def test_a_known_term_inside_a_longer_word_is_not_found() -> None:
-    for skill in KNOWN_SKILLS:
-        assert skill not in extract_skills([f"Used {skill}x often", f"Used x{skill} often"]), skill
-
-
-def test_java_is_not_found_in_javascript_and_the_symbol_terms_work() -> None:
-    assert {"Java", "JavaScript", "C#", "C++", "Node.js", ".NET"} <= set(KNOWN_SKILLS)
-
-    assert extract_skills(["Built apps in JavaScript"]) == ["JavaScript"]
-    assert extract_skills(["Java and JavaScript"]) == ["Java", "JavaScript"]
-    assert extract_skills(["C# C++ Node.js .NET"]) == ["C#", "C++", "Node.js", ".NET"]
-    assert extract_skills(["C#, then C"]) == ["C#"]
-
-
-def test_terms_that_are_also_ordinary_words_need_their_capital() -> None:
-    assert {"React", "Excel"} <= set(EXACT_CASE_SKILLS)
-
-    assert extract_skills(["I react quickly and excel at maths"]) == []
-    assert extract_skills(["Built UIs in React and reports in Excel"]) == ["React", "Excel"]
-
-
-def test_ordinary_word_terms_are_not_in_the_known_list() -> None:
-    assert not {"Go", "C", "R", "Swift"} & set(KNOWN_SKILLS)
-    assert extract_skills(["I like to go to the sea, and R and C are letters, swift as a bird"]) == []
-
-
-def test_items_under_a_skills_heading_are_picked_up_and_sentences_skipped() -> None:
-    lines = ["Skills", "Go, Zorbing; Tide charts | Docker", "I enjoy solving problems with calm and care."]
-
-    found = extract_skills(lines)
-
-    assert set(found) == {"Go", "Zorbing", "Tide charts", "Docker"}
-    assert not any("problems" in item for item in found)
-
-
-def test_go_matches_under_a_skills_heading_and_not_in_prose() -> None:
-    assert "Go" in extract_skills(["Skills", "Go, Zorbing"])
-    assert extract_skills(["Go to the shops and then go home"]) == []
-    assert "Go" not in extract_skills(["Skills", "Zorbing", "Education", "Go to the shops"])
-
-
-def test_skills_are_deduplicated_and_in_order_of_appearance() -> None:
-    first, second, third = KNOWN_SKILLS[:3]
-    assert len({first, second, third}) == 3
-    lines = [f"{second} and {first}", f"{first.upper()}, {third}", f"{second.lower()} again"]
-    found = extract_skills(lines)
-
-    assert found == list(dict.fromkeys(found))
-    assert found == [second, first, third]
-
-
-def _unknown(number: int) -> str:
-    return "Zq" + "".join(chr(97 + int(digit)) for digit in str(number))
-
-
-def test_skills_are_capped_in_order_also_on_hostile_input() -> None:
-    items = [_unknown(n) for n in range(MAX_SKILLS + 60)]
-    lines = ["Skills", *(", ".join(items[i : i + 10]) for i in range(0, len(items), 10))]
-    assert extract_skills(lines) == items[:MAX_SKILLS]
-
-    known = [", ".join(KNOWN_SKILLS[i : i + 8]) for i in range(0, len(KNOWN_SKILLS), 8)]  # Under the line cap.
-    everything = [*known, *lines] * 3
-    assert len(extract_skills(everything)) == MAX_SKILLS
-    assert extract_skills(everything) == list(dict.fromkeys(KNOWN_SKILLS))[:MAX_SKILLS]
-
-
 # --- Never raises ---
 
 FRAGMENTS = ["Skills", "Education", "University", "College", "2011 - 2015", "2012", "Go", "C++", ",", "|", " at ", "CV"]
@@ -277,12 +196,9 @@ text_lines = st.lists(
 def test_any_text_goes_through_the_new_stages_without_raising(lines: list[str]) -> None:
     contact = extract_contact(lines)
     education = extract_education(lines)
-    skills = extract_skills(lines)
 
     assert contact.name is None or 2 <= len(contact.name.split()) <= 4
     assert len(education) <= MAX_EDUCATION_ENTRIES
-    assert len(skills) <= MAX_SKILLS
-    assert len({s.casefold() for s in skills}) == len(skills)
 
 
 @pytest.mark.parametrize("unit", ["University ", "2011 - ", "Skills, ", "C++", "a, ", "Go ", "-", "A "])
@@ -291,8 +207,6 @@ def test_hostile_long_lines_are_handled_within_a_deadline(unit: str) -> None:
     with deadline(10):
         extract_contact(lines)
         extract_education(lines)
-        extract_skills(["Skills", *lines])
-        extract_skills(lines)
     assert constants.MAX_LINE_CHARS  # The caps these rely on exist.
 
 
@@ -340,12 +254,3 @@ def test_a_grade_line_is_not_a_qualification() -> None:
     for lines in (["Example College", "GPA: 3.8", "2015"], ["Example College", "2015", "GPA: 3.8"]):
         [entry] = extract_education(lines)
         assert (entry.institution, entry.qualification) == ("Example College", None)
-
-
-def test_ordinary_words_and_email_addresses_are_not_skills() -> None:
-    assert {"Angular", "Bash"} <= set(KNOWN_SKILLS)
-
-    assert extract_skills(["angular momentum", "in jest", "a bash for friends"]) == []
-    assert extract_skills(["Angular, Bash"]) == ["Angular", "Bash"]
-    assert extract_skills(["Mail python@example.com"]) == []
-    assert "Spanish (B2)" in extract_skills(["Skills", "Spanish (B2), Zorbing"])

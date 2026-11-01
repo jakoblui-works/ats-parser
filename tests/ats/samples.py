@@ -213,11 +213,6 @@ def expected_education(cv: CvData = CV) -> list[dict[str, object]]:
     ]
 
 
-def expected_skills(cv: CvData = CV) -> list[str]:
-    """In the order they're printed; the sample's are all known terms or listed under the heading, once each."""
-    return list(cv.skills)
-
-
 def expected_experience_months(cv: CvData = CV) -> int | None:
     """The total, for jobs that neither overlap nor touch (the sample's don't)."""
     jobs = expected_experience(cv)

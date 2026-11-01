@@ -43,7 +43,9 @@ async def test_the_clean_sample_gives_the_right_answers_and_no_warnings(parse: P
     assert [entry.model_dump() for entry in result.experience] == samples.expected_experience()
     assert result.experience_months == samples.expected_experience_months()
     assert [entry.model_dump() for entry in result.education] == samples.expected_education()
-    assert result.skills == samples.expected_skills()
+    assert result.skills == []  # Never extracted; the section's text is still there.
+    [skills_section] = [section for section in result.sections if section.kind == "skills"]
+    assert all(skill in skills_section.text for skill in CV.skills)
 
 
 def test_location_stays_null_and_the_dropped_warnings_are_never_given() -> None:

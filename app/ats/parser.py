@@ -9,7 +9,6 @@ from app.ats.extraction import ExtractedPage, ExtractedText, Rejection, extract_
 from app.ats.fields import extract_contact
 from app.ats.schemas import Contact, Parsed, ParseResult, Rejected, Section, SectionKind, Visibility, WarningCode
 from app.ats.sections import find_sections
-from app.ats.skills import extract_skills
 
 
 def parse_pdf(pdf: bytes) -> Parsed | Rejected:
@@ -85,6 +84,5 @@ def _to_result(extracted: ExtractedText) -> ParseResult:
         experience=experience,
         experience_months=total_months(experience, today),
         education=extract_education(_section_lines(sections, "education")),
-        skills=extract_skills(lines),
         warnings=find_warnings(extracted.pages, visibility, contact, sections),
     )
