@@ -50,6 +50,9 @@ HEADINGS: dict[SectionKind, tuple[str, ...]] = {
         "career objective",
         "about",
         "about me",
+        "profil",
+        "personlig profil",
+        "om mig",
     ),
     "experience": (
         "experience",
@@ -63,6 +66,12 @@ HEADINGS: dict[SectionKind, tuple[str, ...]] = {
         "work history",
         "career history",
         "professional background",
+        "erhvervserfaring",
+        "arbejdserfaring",
+        "erfaring",
+        "beskæftigelse",
+        "ansættelser",
+        "karriere",
     ),
     "education": (
         "education",
@@ -75,6 +84,8 @@ HEADINGS: dict[SectionKind, tuple[str, ...]] = {
         "professional qualifications",
         "qualifications",
         "training",
+        "uddannelse",
+        "uddannelser",
     ),
     "skills": (
         "skills",
@@ -87,6 +98,10 @@ HEADINGS: dict[SectionKind, tuple[str, ...]] = {
         "core competencies",
         "key competencies",
         "areas of expertise",
+        "kompetencer",
+        "færdigheder",
+        "kvalifikationer",
+        "it-kompetencer",
     ),
     "other": (
         "achievements",
@@ -107,6 +122,17 @@ HEADINGS: dict[SectionKind, tuple[str, ...]] = {
         "volunteering",
         "volunteer experience",
         "volunteer work",
+        "personlige oplysninger",
+        "sprog",
+        "projekter",
+        "frivilligt arbejde",
+        "fritid",
+        "interesser",
+        "referencer",
+        "publikationer",
+        "certificeringer",
+        "kurser",
+        "efteruddannelse",
     ),
 }
 MAX_HEADING_WORDS = 5
@@ -123,6 +149,11 @@ PHONE = re.compile(
     r"(?![\w/@-])"
 )
 MIN_PHONE_DIGITS, MAX_PHONE_DIGITS = 9, 15
+# A Danish number with no `+45` is eight digits, not starting with 0. Its shape says nothing, so only a label counts.
+LOCAL_PHONE = re.compile(
+    r"\b(?:tlf|telefon|mobil|mobile|mob|phone)\b\.?(?: ?nr\.?)?:? ?(?P<number>[1-9]\d(?: ?\d{2}){3})(?![ .-]?\d)",
+    re.IGNORECASE,
+)
 YEAR = re.compile(r"(?<!\d)(?:19|20)\d{2}(?!\d)")
 NOT_A_PHONE = re.compile(r"\bisbn\b", re.IGNORECASE)  # An ISBN-10 written without hyphens looks just like a phone.
 LINK = re.compile(
@@ -132,22 +163,26 @@ LINK = re.compile(
 
 # Experience. A date range is what makes a line a job, so a year in a sentence isn't one. Gaps are bounded and nothing
 # nests, so this stays linear. `experience.py` checks that two-digit years pair up.
-_MONTH_NAME = (
-    r"jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?"
-    r"|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?"
+_MONTH_NAME = (  # English and Danish
+    r"jan(?:uary?)?|feb(?:ruary?)?|mar(?:ch|ts)?|apr(?:il)?|ma[yj]|jun[ei]?|jul[yi]?|aug(?:ust)?"
+    r"|sep(?:t(?:ember)?)?|o[ck]t(?:ober)?|nov(?:ember)?|dec(?:ember)?"
 )
 _GAP = r"\s{1,3}"
 _FULL_YEAR = r"(?:19|20)\d{2}"
 _DATE = (
-    # 15 Mar 2026, Mar. 2026, Mar, 2026, Mar 15, 2026
-    rf"(?:(?:\d{{1,2}}{_GAP})?(?:{_MONTH_NAME})\.?(?:,?{_GAP}|{_GAP}\d{{1,2}},{_GAP}){_FULL_YEAR}"
+    # 15 Mar 2026, 15. marts 2026, Mar. 2026, Mar, 2026, Mar 15, 2026
+    rf"(?:(?:\d{{1,2}}\.?{_GAP})?(?:{_MONTH_NAME})\.?(?:,?{_GAP}|{_GAP}\d{{1,2}},{_GAP}){_FULL_YEAR}"
     rf"|(?:{_MONTH_NAME})\.?{_GAP}['\u2019]?\d{{2}}"  # Mar '26, Mar 26
     rf"|\d{{1,2}}[/.-]{_FULL_YEAR}|\d{{2}}/\d{{2}}"  # 03/2026, 3/2026, 03.2026, 03-2026, 03/26
     rf"|{_FULL_YEAR}(?:-(?:0[1-9]|1[0-2])(?!\d))?)"  # 2026, 2026-03
 )
-_ONGOING = rf"present|current|now|today|ongoing|to{_GAP}date"
+# Short words are safe here: this only ever counts as the end of a range, whose pattern rules out a longer word.
+_ONGOING = (
+    rf"present|current|now|today|ongoing|to{_GAP}date"
+    rf"|nu(?:værende)?|i{_GAP}dag|dags{_GAP}dato|d\.d\.?|igangværende"
+)
 ONGOING = re.compile(_ONGOING, re.IGNORECASE)
-_SEPARATOR = r"[-\u2012-\u2015\u2212]|to|until|till"
+_SEPARATOR = r"[-\u2012-\u2015\u2212]|to|until|till|til"
 DATE_RANGE = re.compile(
     rf"(?<![\w/.-])(?P<start>{_DATE})\s{{0,3}}(?:(?:{_SEPARATOR})\s{{0,3}}|(?=to{_GAP}date))"
     rf"(?P<end>{_DATE}|{_ONGOING})(?![\w/-])",
@@ -155,12 +190,12 @@ DATE_RANGE = re.compile(
 )
 # Only ever reads text DATE_RANGE has matched, so it can be loose: a `2026-03`, or a day, a month and a year.
 DATE_PARTS = re.compile(
-    rf"(\d{{4}})-(\d{{2}})|(?:\d{{1,2}}\s+)?(?:({_MONTH_NAME})\W*(?:\d{{1,2}},\s+)?|(\d{{1,2}})[/.-])?(\d{{2,4}})",
+    rf"(\d{{4}})-(\d{{2}})|(?:\d{{1,2}}\.?\s+)?(?:({_MONTH_NAME})\W*(?:\d{{1,2}},\s+)?|(\d{{1,2}})[/.-])?(\d{{2,4}})",
     re.IGNORECASE,
 )
 MONTH_NUMBERS = {
     name: number for number, name in enumerate("jan feb mar apr may jun jul aug sep oct nov dec".split(), 1)
-}
+} | {"maj": 5, "okt": 10}
 # Separators left around a title once the dates are gone.
 TITLE_EDGES = " ()[]|,;:/-\u2012\u2013\u2014\u2015\u2212\u2022\u00b7"
 TITLE_LINES_ABOVE = 2
@@ -169,15 +204,22 @@ BULLETS = ("\u2022", "\u00b7", "\u25aa", "\u25cf", "\uf0b7", "*", "-", "\u2013")
 
 # Name, employer, education. The separators a CV puts between things on a line. A comma isn't one: it's too often part
 # of the value (`University of California, Berkeley`, `Acme Ltd, London`).
-ENTRY_SEPARATOR = re.compile(r"\s{1,5}(?:[|•·–—-]|at)\s{1,5}")
+ENTRY_SEPARATOR = re.compile(r"\s{1,5}(?:[|•·–—-]|at|hos|ved)\s{1,5}")
 CV_LABEL = re.compile(r"\b(?:curriculum\s{1,3}vitae|cv|r[eé]sum[eé])\b", re.IGNORECASE)
 MIN_NAME_WORDS, MAX_NAME_WORDS = 2, 4
 NAME_PUNCTUATION = "'’.-"
 # Past this a line isn't an employer, an institution or a qualification.
 MAX_ENTRY_CHARS = 70
 MAX_EDUCATION_ENTRIES = 20
-INSTITUTION = re.compile(r"\b(?:university|college|school|institute|academy)\b", re.IGNORECASE)
+# Danish compounds these, so they can end a longer word (`Handelshøjskole`, `Erhvervsakademi`), definite form included
+# (`Folkeskolen`), but one that goes on is about something else (`Akademiuddannelse`).
+INSTITUTION = re.compile(
+    r"\b(?:university|college|school|institute|academy)\b"
+    r"|(?:universitet(?:et)?|skolen?|akademi(?:et)?|gymnasi(?:um|et)|seminari(?:um|et)|teknikum)\b",
+    re.IGNORECASE,
+)
 # A year alone, with any month in front of it, so the month isn't left behind as text.
 LONE_YEAR = re.compile(
-    rf"(?<![\w/.-])(?:(?:{_MONTH_NAME})\.?,?{_GAP}|\d{{1,2}}[/.-])?(?P<year>{_FULL_YEAR})(?![\w/-])", re.IGNORECASE
+    rf"(?<![\w/.-])(?:(?:\d{{1,2}}\.{_GAP})?(?:{_MONTH_NAME})\.?,?{_GAP}|\d{{1,2}}[/.-])?(?P<year>{_FULL_YEAR})(?![\w/-])",
+    re.IGNORECASE,
 )

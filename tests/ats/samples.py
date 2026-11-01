@@ -111,6 +111,55 @@ CV = CvData(
 )
 
 
+# The same shape in Danish: headings, months (as written in several ways), institutions and a Danish phone number.
+DANISH_CV = CvData(
+    name="Søren Ærø-Bækgaard",
+    email="soeren.baekgaard@example.com",
+    phone="+45 12 34 56 78",
+    location="Søborg, Danmark",
+    links=("https://example.com/in/sorenbaekgaard",),
+    summary=(
+        "Konsulent med ti års erfaring i at gøre rodede tal om til",
+        "enkle rapporter, som ledere læser, handler på og husker bagefter.",
+    ),
+    experience=(
+        Job(
+            title="Seniorkonsulent",
+            company="Eksempel Værktøj A/S",
+            start="Marts 2020",
+            end="maj 2023",
+            bullets=(
+                "Ledede et team på fire personer under omlægningen af faktureringen.",
+                "Nedbragte månedsafslutningen fra fem dage til én.",
+                "Fremlagde kvartalsresultater for bestyrelsen.",
+            ),
+        ),
+        Job(
+            title="Juniorkonsulent",
+            company="Prøve Logistik ApS",
+            start="sep. 2015",
+            end="okt. 2019",
+            bullets=(
+                "Byggede ugentlige oversigter for tolv regionale lagre.",
+                "Oplærte nye kolleger i rapporteringsværktøjerne.",
+                "Afstemte leverandørfakturaer mod leveringer.",
+            ),
+        ),
+    ),
+    education=(
+        Degree("Københavns Universitet", "Cand.merc. i Regnskab", "aug. 2011", "jun. 2015"),
+        Degree("Eksempel Handelsgymnasium", "Studentereksamen i Erhverv", "aug. 2009", "jun. 2011"),
+    ),
+    skills=("Python", "SQL", "Regnskab", "Teknisk skrivning", "Interessenthåndtering"),
+    headings={
+        "summary": "Profil",
+        "experience": "Erhvervserfaring",
+        "education": "Uddannelse",
+        "skills": "Kompetencer",
+    },
+)
+
+
 @dataclass(frozen=True)
 class Line:
     text: str
@@ -183,12 +232,16 @@ def expected_sections(cv: CvData = CV) -> list[tuple[str, str]]:
     return [(kind, cv.headings[kind]) for kind, lines in found if lines]
 
 
+_MONTHS = "jan feb mar apr may jun jul aug sep oct nov dec".split()
+_DANISH_MONTHS = {"maj": 5, "okt": 10}  # The only Danish names whose first three letters differ from English.
+
+
 def _month_index(written: str) -> int:
-    """'Jan 2020' as months since year 0. Its own tiny reader, not the parser's."""
+    """'Jan 2020', 'Marts 2020' or 'okt. 2019' as months since year 0. Its own tiny reader, not the parser's."""
     name, year = written.split()
-    return int(year) * 12 + ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].index(
-        name
-    )
+    key = name.rstrip(".").casefold()[:3]
+    month = _DANISH_MONTHS.get(key) or _MONTHS.index(key) + 1
+    return int(year) * 12 + month - 1
 
 
 def expected_experience(cv: CvData = CV) -> list[dict[str, object]]:

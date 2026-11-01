@@ -5,6 +5,7 @@ from app.ats.constants import (
     EMAIL,
     ENTRY_SEPARATOR,
     LINK,
+    LOCAL_PHONE,
     MAX_LINE_CHARS,
     MAX_LINKS,
     MAX_NAME_WORDS,
@@ -57,4 +58,5 @@ def _find_phone(line: str) -> str | None:
         # A year means a date range, unless the number says it's a phone. A real number with one in it is a fair miss.
         if phone.startswith("+") or not YEAR.search(phone):
             return phone
-    return None
+    labelled = LOCAL_PHONE.search(line)
+    return labelled["number"] if labelled else None
