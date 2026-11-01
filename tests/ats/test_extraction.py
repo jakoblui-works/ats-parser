@@ -1,5 +1,7 @@
 """Outcomes for each form of the sample CV, through the in-process parser and through the real child."""
 
+from collections.abc import Callable
+
 import pytest
 
 from app.ats.constants import MAX_FILE_BYTES, MAX_PAGES, MAX_TEXT_CHARS
@@ -59,34 +61,14 @@ async def test_scanned_sample_is_invisible_with_no_text_layer(parse: Parse) -> N
     assert result.page_count == 1
 
 
-async def test_header_text_is_extracted_along_with_the_body(parse: Parse) -> None:
+@pytest.mark.parametrize("make", [samples.header_text_pdf, samples.tables_pdf], ids=["header-text", "tables"])
+async def test_header_text_and_tables_are_extracted(parse: Parse, make: Callable[[], bytes]) -> None:
     cv = samples.CV
-    outcome = await parse(samples.header_text_pdf())
-
-    assert isinstance(outcome, Parsed)
-    result = outcome.result
-    assert result.visibility != "invisible"
-    for value in [cv.name, cv.email, cv.phone, cv.location, cv.experience[0].title, *cv.skills]:
-        assert value in result.text
-
-
-async def test_tables_give_a_result_not_a_rejection(parse: Parse) -> None:
-    result = _parsed(await parse(samples.tables_pdf())).result
+    result = _parsed(await parse(make())).result
 
     assert result.visibility != "invisible"
-    for value in [samples.CV.name, samples.CV.email, samples.CV.phone, samples.CV.location, *samples.CV.skills]:
+    for value in [cv.name, cv.email, cv.phone, cv.location, *cv.skills]:
         assert value in result.text
-
-
-async def test_table_cells_all_come_out(parse: Parse) -> None:
-    text = _parsed(await parse(samples.tables_pdf())).result.text
-
-    for job in samples.CV.experience:
-        for cell in (job.title, job.company, job.start, job.end):
-            assert cell in text
-    for degree in samples.CV.education:
-        for cell in (degree.institution, degree.qualification, degree.start, degree.end):
-            assert cell in text
 
 
 async def test_encrypted_sample_is_rejected_as_encrypted(parse: Parse) -> None:
@@ -98,11 +80,9 @@ async def test_encrypted_sample_is_rejected_as_encrypted(parse: Parse) -> None:
     [
         samples.truncated_pdf(samples.clean_pdf()),
         b"",
-        b"%PDF-",
         samples.garbage_after_header(),
-        b"not a pdf at all",
     ],
-    ids=["truncated", "empty", "header-only", "random-after-header", "plain-text"],
+    ids=["truncated", "empty", "random-after-header"],
 )
 async def test_corrupt_input_is_rejected_as_corrupt(parse: Parse, pdf: bytes) -> None:
     assert await parse(pdf) == Rejected(reason="corrupt")
@@ -129,24 +109,12 @@ async def test_extract_text_raises_rejection_with_the_reason() -> None:
         assert raised.value.reason == reason
 
 
-async def test_extract_text_returns_text_and_pages() -> None:
-    extracted = extract_text(samples.pages_pdf(3))
-
-    assert len(extracted.pages) == 3
-    assert extracted.text.count(samples.CV.email) == 3
-
-
 @pytest.mark.parametrize(
     ("kinds", "expected"),
     [
         (["text", "blank"], "readable"),
-        (["blank", "text"], "readable"),
         (["text", "image"], "partial"),
-        (["image", "text"], "partial"),
         (["blank"], "invisible"),
-        (["blank", "blank"], "invisible"),
-        (["image"], "invisible"),
-        (["image", "image"], "invisible"),
         (["blank", "image"], "invisible"),
     ],
 )

@@ -118,50 +118,69 @@ class Line:
 
 
 def contact_lines(cv: CvData) -> list[Line]:
-    return [
-        Line(cv.name, "name"),
-        Line(cv.email),
-        Line(cv.phone),
-        Line(cv.location),
-        *(Line(link) for link in cv.links),
-    ]
+    """Only what the CV has: an empty field isn't printed."""
+    lines = [Line(cv.name, "name"), Line(cv.email), Line(cv.phone), Line(cv.location), *(Line(x) for x in cv.links)]
+    return [line for line in lines if line.text]
+
+
+def _section(cv: CvData, key: str, body: list[Line]) -> list[Line]:
+    if not body:
+        return []
+    return [Line(cv.headings[key], "heading"), *body]
 
 
 def summary_lines(cv: CvData) -> list[Line]:
-    return [Line(cv.headings["summary"], "heading"), *(Line(text) for text in cv.summary)]
+    return _section(cv, "summary", [Line(text) for text in cv.summary])
 
 
 def experience_lines(cv: CvData) -> list[Line]:
-    lines = [Line(cv.headings["experience"], "heading")]
+    body = []
     for job in cv.experience:
-        lines += [Line(job.title), Line(job.company), Line(f"{job.start} - {job.end}")]
-        lines += [Line(bullet) for bullet in job.bullets]
-    return lines
+        body += [Line(job.title), Line(job.company), Line(f"{job.start} - {job.end}")]
+        body += [Line(bullet) for bullet in job.bullets]
+    return _section(cv, "experience", body)
 
 
 def education_lines(cv: CvData) -> list[Line]:
-    lines = [Line(cv.headings["education"], "heading")]
+    body = []
     for degree in cv.education:
-        lines += [Line(degree.institution), Line(degree.qualification), Line(f"{degree.start} - {degree.end}")]
-    return lines
+        body += [Line(degree.institution), Line(degree.qualification)]
+        body.append(Line(f"{degree.start} - {degree.end}"))
+    return _section(cv, "education", body)
 
 
 def skills_lines(cv: CvData) -> list[Line]:
     """One skill per line: the form a sidebar uses."""
-    return [Line(cv.headings["skills"], "heading"), *(Line(skill) for skill in cv.skills)]
+    return _section(cv, "skills", [Line(skill) for skill in cv.skills])
 
 
 def expected_values(cv: CvData = CV) -> list[str]:
     """Every value the clean sample prints, in the order it prints them (document order)."""
-    values = [cv.name, cv.email, cv.phone, cv.location, *cv.links, cv.headings["summary"], *cv.summary]
-    values.append(cv.headings["experience"])
+    values = [line.text for line in contact_lines(cv)] + [line.text for line in summary_lines(cv)]
+    if experience_lines(cv):
+        values.append(cv.headings["experience"])
     for job in cv.experience:
         values += [job.title, job.company, job.start, job.end, *job.bullets]
-    values.append(cv.headings["education"])
+    if education_lines(cv):
+        values.append(cv.headings["education"])
     for degree in cv.education:
         values += [degree.institution, degree.qualification, degree.start, degree.end]
-    values += [cv.headings["skills"], *cv.skills]
+    values += [line.text for line in skills_lines(cv)[:1]] + list(cv.skills)
     return values
+
+
+# --- The right answers, as plain dicts shaped like the contract's models (compare with `model_dump()`) ---
+
+
+def expected_sections(cv: CvData = CV) -> list[tuple[str, str]]:
+    """(kind, heading) of each section the clean layout prints, in order."""
+    found = [
+        ("summary", summary_lines(cv)),
+        ("experience", experience_lines(cv)),
+        ("education", education_lines(cv)),
+        ("skills", skills_lines(cv)),
+    ]
+    return [(kind, cv.headings[kind]) for kind, lines in found if lines]
 
 
 def _font(style: LineStyle) -> tuple[str, int]:
@@ -190,8 +209,7 @@ def _clean_lines(cv: CvData) -> list[Line]:
         *summary_lines(cv),
         *experience_lines(cv),
         *education_lines(cv),
-        Line(cv.headings["skills"], "heading"),
-        Line(", ".join(cv.skills)),
+        *_section(cv, "skills", [Line(", ".join(cv.skills))] if cv.skills else []),
     ]
 
 
@@ -290,6 +308,16 @@ def pages_pdf(count: int, cv: CvData = CV) -> bytes:
     canvas = Canvas(buffer, pagesize=A4)
     for number in range(1, count + 1):
         _draw(canvas, [Line(f"Page {number}", "heading"), *contact_lines(cv)], 50, PAGE_HEIGHT - 50)
+        canvas.showPage()
+    return _finish(canvas, buffer)
+
+
+def text_pages_pdf(pages: list[list[str]]) -> bytes:
+    """A page for each list of lines, drawn as plain text."""
+    buffer = BytesIO()
+    canvas = Canvas(buffer, pagesize=A4)
+    for lines in pages:
+        _draw(canvas, [Line(text) for text in lines], 50, PAGE_HEIGHT - 50)
         canvas.showPage()
     return _finish(canvas, buffer)
 
@@ -423,3 +451,47 @@ def long_text_pdf(total_chars: int, pages: int) -> bytes:
             canvas.drawString(10, PAGE_HEIGHT - 20 - row * step, ("abcdefghi " * 15)[:line_chars])
         canvas.showPage()
     return _finish(canvas, buffer)
+
+
+# --- Generic layouts, for properties over many shapes of page ---
+
+
+@dataclass(frozen=True)
+class Item:
+    text: str
+    x: float  # Left edge, or the right edge when align is "right".
+    top: float  # Baseline, measured down from the top of the page.
+    size: float = 10
+    bold: bool = False
+    align: Literal["left", "right"] = "left"
+
+
+def layout_pdf(items: list[Item]) -> bytes:
+    buffer = BytesIO()
+    canvas = Canvas(buffer, pagesize=A4)
+    for item in items:
+        font = "Helvetica-Bold" if item.bold else "Helvetica"
+        canvas.setFont(font, item.size)
+        draw = canvas.drawRightString if item.align == "right" else canvas.drawString
+        draw(item.x, PAGE_HEIGHT - item.top, item.text)
+    return _finish(canvas, buffer)
+
+
+# Look-alikes of a space and a hyphen. PDF text uses them, and a pattern for the plain characters misses them.
+LOOKALIKES = {"\u00a0": 2, "\u2011": 1, "\u2010": 3}  # Character -> the code that stands for it in lookalike_pdf.
+
+
+def lookalike_pdf(lines: list[str]) -> bytes:
+    """Lines of text in which no-break spaces and non-breaking hyphens are real characters of the font's encoding.
+
+    The standard fonts have no glyph for them, so the codes are mapped to the characters by the font's /Encoding, which
+    is how an extractor learns what was written. Everything else is plain ASCII."""
+    by_code = {code: char for char, code in LOOKALIKES.items()}  # Codes 1, 2, 3 in a row.
+    glyphs = " ".join(f"/uni{ord(by_code[code]):04X}" for code in sorted(by_code))
+    font = f"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding << /Differences [1 {glyphs}] >> >>"
+    rows = []
+    for index, line in enumerate(lines):
+        coded = "".join(chr(LOOKALIKES[char]) if char in LOOKALIKES else char for char in line)
+        escaped = coded.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+        rows.append(f"BT /F1 12 Tf 50 {780 - 20 * index} Td ({escaped}) Tj ET\n")
+    return raw_pdf(_one_page_objects("".join(rows).encode("latin-1"), font=font.encode()))

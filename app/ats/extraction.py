@@ -21,6 +21,8 @@ logging.getLogger("pdfminer").setLevel(logging.CRITICAL + 1)
 # boxes_flow=None turns off pdfminer's reading-order analysis, which would put columns back together.
 # all_texts=True also groups text inside form objects into lines, or it would be missed below.
 _LAYOUT = LAParams(boxes_flow=None, all_texts=True)
+# Spaces and hyphens that look ordinary to a reader but match nothing: no-break, narrow and non-breaking ones.
+_LOOKALIKES = str.maketrans({"\u00a0": " ", "\u2007": " ", "\u202f": " ", "\u2010": "-", "\u2011": "-"})
 
 
 class Rejection(Exception):
@@ -47,8 +49,12 @@ class ExtractedPage:
     has_image: bool = False
 
     @property
+    def lines(self) -> list[str]:
+        return [" ".join(line.text for line in row) for row in self.rows]
+
+    @property
     def text(self) -> str:
-        return "\n".join(" ".join(line.text for line in row) for row in self.rows)
+        return "\n".join(self.lines)
 
 
 @dataclass(frozen=True)
@@ -59,11 +65,15 @@ class ExtractedText:
     def text(self) -> str:
         return "\n\n".join(page.text for page in self.pages)
 
+    @property
+    def lines(self) -> list[str]:
+        return [line for page in self.pages for line in page.lines]
+
 
 def extract_text(pdf: bytes) -> ExtractedText:
     """Reads the text a simple parser would, top to bottom across the whole page.
 
-    A two-column CV comes out with its columns interleaved, and that's the point: later stages flag it.
+    A two-column CV comes out with its columns interleaved, and that's the point: the page shows it beside the PDF.
     Runs with no limits of its own, so untrusted files only ever go through it in the child (see sandbox.py).
 
     Raises Rejection. Encrypted files are told apart by pdfminer's own error type, and nothing else is: it raises
@@ -111,7 +121,7 @@ def _read(pdf: bytes) -> ExtractedText:
 def _lines(item: LTItem, page: LTPage) -> list[TextLine]:
     if isinstance(item, LTTextLine):
         # A font's Unicode map can hold lone surrogates, which can't be encoded on the way out.
-        text = item.get_text().encode("utf-8", "replace").decode("utf-8").strip()
+        text = item.get_text().encode("utf-8", "replace").decode("utf-8").translate(_LOOKALIKES).strip()
         return [TextLine(text=text, x0=item.x0, x1=item.x1, bottom=page.y1 - item.y0)] if text else []
     if isinstance(item, LTContainer):
         return [line for child in item for line in _lines(child, page)]

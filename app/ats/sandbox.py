@@ -9,7 +9,7 @@ How the child's end maps to an outcome:
 - It writes an outcome and exits 0: that outcome, including rejections from the parser.
 - It runs past the time limit, wall clock or RLIMIT_CPU: killed, `timed_out`.
 - It dies from a fault (a segfault in native code, say): the file did that, `corrupt`. The memory limit shows up as a
-  MemoryError, not a signal, and the parser turns that into `corrupt` itself.
+  MemoryError, not a signal, and parse_pdf turns that into `corrupt` itself, in any stage.
 - Anything else, as another signal, a non-zero exit, too much output or unreadable output: the child itself is broken or
   something else stopped it, whatever the file. That raises ParserFailed, so the task fails with `error` rather than
   calling every CV corrupt.

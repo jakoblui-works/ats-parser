@@ -70,6 +70,7 @@ async def test_the_capture_can_see_the_sandbox_logging(
 
 
 async def test_parsing_samples_logs_no_cv_text(caplog: pytest.LogCaptureFixture) -> None:
+    odd_dates = samples.Job("Analyst", "Example Ltd", "Spring 2019", "'21", ())
     files = [
         samples.clean_pdf(CV),
         samples.two_column_pdf(CV),
@@ -78,6 +79,12 @@ async def test_parsing_samples_logs_no_cv_text(caplog: pytest.LogCaptureFixture)
         samples.pages_pdf(MAX_PAGES + 1, CV),  # rejected: too many pages
         samples.truncated_pdf(samples.clean_pdf(CV)),  # rejected: corrupt, with CV text still in the bytes
         samples.encrypted_pdf(CV),  # rejected: encrypted
+        samples.scanned_pdf(CV),
+        samples.owner_password_only_pdf(CV),
+        samples.page_kinds_pdf(["text", "image"], CV),
+        # The field stages see every kind of CV line: contacts, headings, skills.
+        samples.clean_pdf(dataclasses.replace(CV, experience=(odd_dates,))),
+        samples.clean_pdf(dataclasses.replace(CV, email="", phone="", experience=(), education=())),
     ]
     for pdf in files:
         parse_pdf(pdf)
@@ -131,6 +138,30 @@ async def test_the_real_child_writes_no_cv_text_to_stderr(capfd: pytest.CaptureF
     for pdf in (samples.clean_pdf(CV), samples.truncated_pdf(samples.clean_pdf(CV)), samples.encrypted_pdf(CV)):
         await asyncio.wait_for(parse_in_child(pdf), 30)
 
+    captured = capfd.readouterr()
+    for secret in _secrets():
+        assert secret not in captured.err
+        assert secret not in captured.out
+
+
+async def test_a_bug_in_a_later_stage_leaks_no_cv_text_to_logs_or_stderr(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, capfd: pytest.CaptureFixture[str]
+) -> None:
+    code = (
+        "import app.ats.parser as parser\n"
+        "def boom(*args, **kwargs):\n"
+        "    raise RuntimeError('stage bug')\n"
+        "parser.extract_contact = boom\n"
+        "import app.ats.child as child\n"
+        "child.main()\n"
+    )
+    monkeypatch.setattr(sandbox, "CHILD_COMMAND", (sys.executable, "-c", code))
+
+    with pytest.raises(ParserFailed) as failure:
+        await asyncio.wait_for(parse_in_child(samples.clean_pdf(CV)), 30)
+
+    assert MARKER not in str(failure.value)
+    _assert_no_cv_text(caplog)
     captured = capfd.readouterr()
     for secret in _secrets():
         assert secret not in captured.err
