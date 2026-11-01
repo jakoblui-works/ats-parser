@@ -37,7 +37,6 @@ class TextLine:
 
     text: str
     x0: float
-    x1: float
     bottom: float
 
 
@@ -122,7 +121,7 @@ def _lines(item: LTItem, page: LTPage) -> list[TextLine]:
     if isinstance(item, LTTextLine):
         # A font's Unicode map can hold lone surrogates, which can't be encoded on the way out.
         text = item.get_text().encode("utf-8", "replace").decode("utf-8").translate(_LOOKALIKES).strip()
-        return [TextLine(text=text, x0=item.x0, x1=item.x1, bottom=page.y1 - item.y0)] if text else []
+        return [TextLine(text=text, x0=item.x0, bottom=page.y1 - item.y0)] if text else []
     if isinstance(item, LTContainer):
         return [line for child in item for line in _lines(child, page)]
     return []
