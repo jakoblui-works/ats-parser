@@ -252,7 +252,7 @@ def test_a_cv_layout_with_a_company_line_a_promotion_sentence_and_two_employers(
         "\u2022 Did a thing.",
         "Gadgetco | Part Time Harbourtown, Exampleland",
         "Developer Jan 2023 \u2013 Jun 2023",
-        "Intern Jul 2022 \u2013 Dec 2022",
+        "Junior Designer Jul 2022 \u2013 Dec 2022",
     ]
     today = date(2026, 12, 1)
     entries = extract_experience(lines, today)
@@ -261,7 +261,7 @@ def test_a_cv_layout_with_a_company_line_a_promotion_sentence_and_two_employers(
         ("Lead Developer", 6),
         ("Backend Developer", 6),
         ("Developer", 6),
-        ("Intern", 6),
+        ("Junior Designer", 6),
     ]
     assert total_months(entries, today) == 12 + 12
 

@@ -105,7 +105,7 @@ CV = CvData(
     ),
     education=(
         Degree("University of Exampleton", "BSc Computing", "Sep 2011", "Jun 2015"),
-        Degree("Sample College", "Diploma in Statistics", "Sep 2009", "Jun 2011"),
+        Degree("Sample College", "Bachelor of Statistics", "Sep 2009", "Jun 2011"),
     ),
     skills=("Python", "SQL", "Data modelling", "Technical writing", "Stakeholder management"),
 )
@@ -148,7 +148,7 @@ DANISH_CV = CvData(
     ),
     education=(
         Degree("Københavns Universitet", "Cand.merc. i Regnskab", "aug. 2011", "jun. 2015"),
-        Degree("Eksempel Handelsgymnasium", "Studentereksamen i Erhverv", "aug. 2009", "jun. 2011"),
+        Degree("Eksempel Gymnasium", "STX Studentereksamen", "aug. 2009", "jun. 2011"),
     ),
     skills=("Python", "SQL", "Regnskab", "Teknisk skrivning", "Interessenthåndtering"),
     headings={

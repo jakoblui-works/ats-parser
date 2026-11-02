@@ -227,13 +227,13 @@ def test_danish_institution_words_are_institutions_and_a_longer_word_is_not() ->
 
     for not_one in ("Akademiuddannelse i Ledelse", "Skolelærer", "Folkeskolens Vejviser"):
         [entry] = extract_education([not_one, "2018 - 2020"])
-        assert (entry.institution, entry.qualification) == (None, not_one), not_one
+        assert (entry.institution, entry.qualification) == (None, None), not_one
 
 
 def test_definite_forms_of_institution_words_are_institutions() -> None:
     for institution in ("Folkeskolen", "Skolen", "Akademiet", "Seminariet"):
-        [entry] = extract_education([institution, "Afgangseksamen", "2011 - 2015"])
-        assert (entry.institution, entry.qualification) == (institution, "Afgangseksamen"), institution
+        [entry] = extract_education([institution, "HF", "2011 - 2015"])
+        assert (entry.institution, entry.qualification) == (institution, "HF"), institution
 
 
 # --- 7. Phones ---

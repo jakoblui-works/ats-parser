@@ -1,9 +1,12 @@
-"""Jobs from the lines of the experience sections: any line with a date range is one. A missed job is honest."""
+"""Jobs from the lines of the experience sections: any line with a date range is one. A missed job is honest, and so is
+a title or employer left out: each is only named when its own words say what it is."""
 
 from datetime import date
+from typing import Literal
 
 from app.ats.constants import (
     BULLETS,
+    COMPANY_MARKER,
     DATE_PARTS,
     DATE_RANGE,
     ENTRY_SEPARATOR,
@@ -14,6 +17,7 @@ from app.ats.constants import (
     ONGOING,
     TITLE_EDGES,
     TITLE_LINES_ABOVE,
+    TITLE_WORD,
     YEAR,
 )
 from app.ats.schemas import Experience
@@ -23,11 +27,18 @@ from app.ats.sections import heading_kind
 def extract_experience(section_lines: list[str], today: date) -> list[Experience]:
     lines = [line[:MAX_LINE_CHARS] for line in section_lines]
     entries: list[Experience] = []
+    dates_first, section_start = False, True
     for index, line in enumerate(lines):
+        if not line.strip():
+            section_start = True  # Sections of a kind are joined by a blank line, and each has its own layout.
+            continue
         found = None if is_prose(line) else DATE_RANGE.search(line)
         span = _span(found["start"], found["end"], today) if found else None
         if found and span:
-            title, company = _title_and_company(lines, index, _title_beside(line, found.start(), found.end()))
+            beside = _title_beside(line, found.start(), found.end())
+            if section_start:
+                dates_first, section_start = starts_with_dates(lines, index, beside), False
+            title, company = _title_and_company(entry_candidates(lines, index, beside, above=not dates_first))
             entries.append(
                 Experience(
                     title=title, company=company, start=found["start"], end=found["end"], months=span[1] - span[0]
@@ -117,31 +128,33 @@ def is_entry_text(text: str) -> bool:
     )
 
 
-def _is_employer(text: str) -> bool:
-    words = text.split()
-    return is_entry_text(text) and 2 * sum(word[0].isupper() for word in words) >= len(words)  # Sentences aren't.
+def entry_candidates(lines: list[str], index: int, beside: str | None, *, above: bool) -> list[str]:
+    """The texts that can name the entry dated on `lines[index]`: the parts of the text beside its dates, or else the
+    lines just above them (`above`). Never the lines below: they're the next entry's as often as this one's."""
+    texts = [beside] if beside else lines_above(lines[max(0, index - TITLE_LINES_ABOVE) : index]) if above else []
+    parts = [part.strip(TITLE_EDGES) for text in texts for part in ENTRY_SEPARATOR.split(text)]
+    return [part for part in parts if is_entry_text(part)]
 
 
-def _title_and_company(lines: list[str], index: int, beside: str | None) -> tuple[str | None, str | None]:
-    """`Title | Company`, else `Title / Company / Dates`, else the line below the dates."""
-    above = [] if beside else lines_above(lines[max(0, index - TITLE_LINES_ABOVE) : index])
-    title = beside or next(iter(above), None)
-    parts = ENTRY_SEPARATOR.split(title, maxsplit=2) if title else []
-    if len(parts) > 1 and _is_employer(parts[1]):
-        return parts[0], parts[1]
-    for line in (*above[1:], _line_below(lines, index)):
-        company = ENTRY_SEPARATOR.split(line, maxsplit=1)[0].strip(TITLE_EDGES)
-        if _is_employer(company):
-            return title, company
-    return title, None
+def starts_with_dates(lines: list[str], index: int, beside: str | None) -> bool:
+    """Whether a section's first entry, dated on `lines[index]`, has nothing beside or above its dates. Then each
+    entry's lines follow its dates, and the lines above the next dates are this entry's, so they can't name that one."""
+    return not beside and not lines_above(lines[max(0, index - TITLE_LINES_ABOVE) : index])
 
 
-def _line_below(lines: list[str], index: int) -> str:
-    """The next line, unless it's the title of the job after this one: dates follow before any bullet does."""
-    for line in lines[index + 2 : index + 2 + TITLE_LINES_ABOVE]:
-        if not line.strip() or is_prose(line):
-            break
-        if DATE_RANGE.search(line):
-            return ""
-    below = lines[index + 1] if index + 1 < len(lines) else ""
-    return "" if is_prose(below) or DATE_RANGE.search(below) else below
+_Role = Literal["title", "company", "both", "neither"]
+
+
+def _role(text: str) -> _Role:
+    title, company = bool(TITLE_WORD.search(text)), bool(COMPANY_MARKER.search(text))
+    return "both" if title and company else "title" if title else "company" if company else "neither"
+
+
+def _title_and_company(candidates: list[str]) -> tuple[str | None, str | None]:
+    """Each named only by its own words: a title word, or an employer's legal form. Never one by the other, since the
+    line beside a title is as often a city or `Remote` as the employer. A text with both names neither, and two of a
+    kind name nothing."""
+    roles = [_role(text) for text in candidates]
+    titles = [text for text, role in zip(candidates, roles, strict=True) if role == "title"]
+    companies = [text for text, role in zip(candidates, roles, strict=True) if role == "company"]
+    return (titles[0] if len(titles) == 1 else None, companies[0] if len(companies) == 1 else None)

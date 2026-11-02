@@ -218,6 +218,31 @@ INSTITUTION = re.compile(
     r"|(?:universitet(?:et)?|skolen?|akademi(?:et)?|gymnasi(?:um|et)|seminari(?:um|et)|teknikum)\b",
     re.IGNORECASE,
 )
+# What a job's or a degree's lines are told apart by: their words alone, as a simple ATS's lists would. Position isn't
+# used, since CVs put title and employer either way round; a line with no word from a list is left unlabelled.
+# Titles: English as whole words; Danish ones also end a compound (`Projektleder`), but never start one (`Lederskab`).
+TITLE_WORD = re.compile(
+    r"\b(?:developer|engineer|programmer|architect|manager|director|head\s+of|consultant|analyst|designer|scientist"
+    r"|researcher|specialist|coordinator|administrator|accountant|adviser|advisor|assistant|intern|officer|founder"
+    r"|technician|teacher|nurse|ceo|cto|cfo|coo)\b"
+    r"|(?:udvikler|programmør|arkitekt|leder|chef|direktør|konsulent|rådgiver|analytiker|ingeniør|tekniker"
+    r"|koordinator|medarbejder|assistent|praktikant|sygeplejerske|lærer|pædagog)\b",
+    re.IGNORECASE,
+)
+# Employers: legal forms, and the public employers that name themselves. Short forms only as written (`AS`, not `as`;
+# `plc`, not `PLC`, which is a programmable logic controller in an engineer's title).
+COMPANY_MARKER = re.compile(
+    r"(?<![\w/.])(?:A/S|ApS|APS|I/S|K/S|P/S|IVS|Ltd|LTD|Limited|Inc|INC|LLC|LLP|GmbH|plc|Corp|AB|AS|ASA|AG|Oy|SE"
+    r"|S\.A\.|B\.V\.|N\.V\.)(?![\w/])"
+    r"|(?i:\b(?:university|universitet|region)\b|kommune\b)"
+)
+# Degrees, as whole words, and the `cand.` degrees (`cand.merc.`).
+QUALIFICATION = re.compile(
+    r"\b(?:bachelor|professionsbachelor|master|bsc|msc|ba|ma|mba|phd|ph\.d|diploma|kandidat)\b|\bcand\.[a-zæøå]+\.?",
+    re.IGNORECASE,
+)
+# Danish upper secondary exams count only standing for the exam, as schools are named after theirs (`HTX Roskilde`).
+EXAM = re.compile(r"(?:hf|stx|hhx|htx|eux)(?:\s+studentereksamen)?", re.IGNORECASE)
 # A year alone, with any month in front of it, so the month isn't left behind as text.
 LONE_YEAR = re.compile(
     rf"(?<![\w/.-])(?:(?:\d{{1,2}}\.{_GAP})?(?:{_MONTH_NAME})\.?,?{_GAP}|\d{{1,2}}[/.-])?(?P<year>{_FULL_YEAR})(?![\w/-])",

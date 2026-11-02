@@ -78,14 +78,21 @@ def test_a_label_a_heading_or_an_email_line_is_not_the_name(first_line: str) -> 
         ("Data Analyst - Acme Widgets Ltd", DATES),
         ("Data Analyst at Acme Widgets Ltd " + DATES,),
         ("Data Analyst", "Acme Widgets Ltd", DATES),
-        (f"Data Analyst {DATES}", "Acme Widgets Ltd"),
-        ("Data Analyst", DATES, "Acme Widgets Ltd"),
     ],
 )
 def test_the_employer_is_found_in_each_common_shape(lines: tuple[str, ...]) -> None:
     job = _one_job(*lines)
 
     assert (job.title, job.company) == ("Data Analyst", "Acme Widgets Ltd")
+
+
+@pytest.mark.parametrize(
+    "lines", [(f"Data Analyst {DATES}", "Acme Widgets Ltd"), ("Data Analyst", DATES, "Acme Widgets Ltd")]
+)
+def test_a_line_below_the_dates_is_never_the_employer(lines: tuple[str, ...]) -> None:
+    job = _one_job(*lines)
+
+    assert (job.title, job.company) == ("Data Analyst", None)
 
 
 @pytest.mark.parametrize(
@@ -120,7 +127,6 @@ def test_no_employer_gives_null_and_the_job_stays() -> None:
     [
         ("University of Exampleton", "BSc Computing", "2011 - 2015"),
         ("BSc Computing", "University of Exampleton", "2011 - 2015"),
-        ("2011 - 2015", "University of Exampleton", "BSc Computing"),
         ("BSc Computing | University of Exampleton | 2011 - 2015",),
     ],
 )
@@ -132,11 +138,17 @@ def test_institution_and_qualification_are_told_apart_by_the_word_list_in_either
     assert (entry.start, entry.end) == ("2011", "2015")
 
 
+def test_lines_below_the_dates_are_never_institution_or_qualification() -> None:
+    [entry] = extract_education(["2011 - 2015", "University of Exampleton", "BSc Computing"])
+
+    assert (entry.institution, entry.qualification, entry.end) == (None, None, "2015")
+
+
 def test_every_institution_word_marks_an_institution() -> None:
     for word in ("University", "College", "School", "Institute", "Academy"):
-        [entry] = extract_education([f"Example {word}", "Diploma in Statistics", "2012"])
+        [entry] = extract_education([f"Example {word}", "MSc Statistics", "2012"])
         assert entry.institution == f"Example {word}"
-        assert entry.qualification == "Diploma in Statistics"
+        assert entry.qualification == "MSc Statistics"
 
 
 def test_a_lone_year_is_when_it_ended_and_each_date_makes_an_entry() -> None:
@@ -170,7 +182,7 @@ def test_education_dates_are_not_jobs_and_experience_dates_are_not_education() -
     ("lines", "institution", "qualification"),
     [
         (["Example College", "2011 - 2013"], "Example College", None),
-        (["Diploma in Statistics", "2013"], None, "Diploma in Statistics"),
+        (["MSc Statistics", "2013"], None, "MSc Statistics"),
         (["2011 - 2013"], None, None),
     ],
 )
@@ -218,17 +230,19 @@ def test_a_comma_does_not_split_a_name() -> None:
 
 
 def test_a_comma_does_not_split_a_title_or_an_institution() -> None:
+    # Unsplit, the line has both a title word and a legal form, so it labels nothing; split, it would label both.
     job = _one_job("Data Analyst, Acme Widgets Ltd", DATES)
-    assert (job.title, job.company) == ("Data Analyst, Acme Widgets Ltd", None)
-    assert _one_job("Head of Sales, EMEA", DATES).company is None
-    assert _one_job("Head of Sales, EMEA", DATES).title == "Head of Sales, EMEA"
+    assert (job.title, job.company) == (None, None)
+    # One text with a title word, kept whole: split at the comma, the title would be "Data Analyst" alone.
+    job = _one_job("Data Analyst, EMEA", DATES)
+    assert (job.title, job.company) == ("Data Analyst, EMEA", None)
     job = _one_job("Manager, Sales at Acme", DATES)
-    assert (job.title, job.company) == ("Manager, Sales", "Acme")
+    assert (job.title, job.company) == ("Manager, Sales", None)  # "Acme" has no legal form, so it names nothing.
 
     [entry] = extract_education(["University of California, Berkeley", "2011 - 2015"])
     assert (entry.institution, entry.qualification) == ("University of California, Berkeley", None)
     [entry] = extract_education(["University of Exampleton, BSc Computing", "2011 - 2015"])
-    assert (entry.institution, entry.qualification) == ("University of Exampleton, BSc Computing", None)
+    assert (entry.institution, entry.qualification) == (None, None)  # Both signals on one line: used for neither.
 
 
 @pytest.mark.parametrize("bullet", ["\u2022", "-", "\u2013", "\uf0b7"])
