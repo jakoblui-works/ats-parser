@@ -80,9 +80,9 @@ wheels = [
 ]
 
 [[package]]
-name = "ats-service"
+name = "ats-parser"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "pdfminer-six" },
 ]

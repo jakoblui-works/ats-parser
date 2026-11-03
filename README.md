@@ -1,4 +1,4 @@
-# ats-service
+# ats-parser
 
 Taskiq worker for the ATS check.
 

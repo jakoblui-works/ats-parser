@@ -1,5 +1,5 @@
 [project]
-name = "ats-service"
+name = "ats-parser"
 version = "0.1.0"
 description = "PDF parser for the ATS check"
 readme = "README.md"
@@ -7,6 +7,10 @@ requires-python = ">=3.13"
 dependencies = [
     "pdfminer-six>=20260107",
 ]
+
+[build-system]
+requires = ["uv_build>=0.12.21,<0.13.0"]
+build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
