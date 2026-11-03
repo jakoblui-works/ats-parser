@@ -218,7 +218,7 @@ def expected_values(cv: CvData = CV) -> list[str]:
     return values
 
 
-# --- The right answers, as plain dicts shaped like the contract's models (compare with `model_dump()`) ---
+# --- The right answers, as plain dicts shaped like the contract's models (compare with `dataclasses.asdict()`) ---
 
 
 def expected_sections(cv: CvData = CV) -> list[tuple[str, str]]:

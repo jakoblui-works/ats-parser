@@ -40,9 +40,9 @@ async def test_the_clean_sample_gives_the_right_answers_and_no_warnings(parse: P
     assert result.contact.location is None
     assert [(section.kind, section.heading) for section in result.sections] == samples.expected_sections()
     assert result.warnings == []
-    assert [entry.model_dump() for entry in result.experience] == samples.expected_experience()
+    assert [dataclasses.asdict(entry) for entry in result.experience] == samples.expected_experience()
     assert result.experience_months == samples.expected_experience_months()
-    assert [entry.model_dump() for entry in result.education] == samples.expected_education()
+    assert [dataclasses.asdict(entry) for entry in result.education] == samples.expected_education()
     assert result.skills == []  # Never extracted; the section's text is still there.
     [skills_section] = [section for section in result.sections if section.kind == "skills"]
     assert all(skill in skills_section.text for skill in CV.skills)

@@ -1,5 +1,7 @@
 """The parser's stages, in order. Has no time limit of its own: the host must bound the call."""
 
+import dataclasses
+import json
 from datetime import date
 
 from ats_parser.constants import MIN_READABLE_CHARS_PER_PAGE, UNMAPPED_CHARACTER
@@ -20,6 +22,11 @@ def parse_pdf(pdf: bytes) -> Parsed | Rejected:
         return Parsed(result=_to_result(extracted))
     except MemoryError:  # The file's size did that, whichever stage it reached. Any other error is a parser bug.
         return Rejected(reason="corrupt")
+
+
+def parse_pdf_json(pdf: bytes) -> str:
+    """`parse_pdf`'s outcome as JSON, keys in field order: the browser's entry point. An exception is a parser bug."""
+    return json.dumps(dataclasses.asdict(parse_pdf(pdf)), ensure_ascii=False)
 
 
 def classify_visibility(pages: list[ExtractedPage]) -> Visibility:

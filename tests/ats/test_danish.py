@@ -1,5 +1,6 @@
 """Danish CVs: headings, months, ongoing ends, institutions, names and phone formats. All data is invented."""
 
+from dataclasses import asdict
 from datetime import date
 
 import pytest
@@ -77,9 +78,9 @@ async def test_a_danish_cv_gives_its_answers_and_no_warnings(parse: Parse) -> No
     assert (result.contact.name, result.contact.email, result.contact.phone) == (cv.name, cv.email, cv.phone)
     assert result.contact.links == list(cv.links)
     assert [(section.kind, section.heading) for section in result.sections] == samples.expected_sections(cv)
-    assert [entry.model_dump() for entry in result.experience] == samples.expected_experience(cv)
+    assert [asdict(entry) for entry in result.experience] == samples.expected_experience(cv)
     assert result.experience_months == samples.expected_experience_months(cv)
-    assert [entry.model_dump() for entry in result.education] == samples.expected_education(cv)
+    assert [asdict(entry) for entry in result.education] == samples.expected_education(cv)
     assert result.warnings == []
 
 
@@ -324,7 +325,7 @@ def test_the_english_sample_still_gives_exactly_its_answers() -> None:
         ("education", "Education"),
         ("skills", "Skills"),
     ]
-    assert [entry.model_dump() for entry in result.experience] == [
+    assert [asdict(entry) for entry in result.experience] == [
         {
             "title": "Senior Analyst",
             "company": "Example Widgets Ltd",
@@ -341,7 +342,7 @@ def test_the_english_sample_still_gives_exactly_its_answers() -> None:
         },
     ]
     assert result.experience_months == 91
-    assert [entry.model_dump() for entry in result.education] == samples.expected_education(cv)
+    assert [asdict(entry) for entry in result.education] == samples.expected_education(cv)
     assert result.warnings == []
 
 
