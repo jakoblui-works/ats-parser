@@ -1,0 +1,379 @@
+{
+  "$defs": {
+    "Contact": {
+      "additionalProperties": false,
+      "properties": {
+        "email": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Email"
+        },
+        "links": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Links",
+          "type": "array"
+        },
+        "location": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Location"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Name"
+        },
+        "phone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Phone"
+        }
+      },
+      "required": [
+        "name",
+        "email",
+        "phone",
+        "location",
+        "links"
+      ],
+      "title": "Contact",
+      "type": "object"
+    },
+    "Education": {
+      "additionalProperties": false,
+      "properties": {
+        "end": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "End"
+        },
+        "institution": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Institution"
+        },
+        "qualification": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Qualification"
+        },
+        "start": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Start"
+        }
+      },
+      "required": [
+        "institution",
+        "qualification",
+        "start",
+        "end"
+      ],
+      "title": "Education",
+      "type": "object"
+    },
+    "Experience": {
+      "additionalProperties": false,
+      "properties": {
+        "company": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Company"
+        },
+        "end": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "End"
+        },
+        "months": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Months"
+        },
+        "start": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Start"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Title"
+        }
+      },
+      "required": [
+        "title",
+        "company",
+        "start",
+        "end",
+        "months"
+      ],
+      "title": "Experience",
+      "type": "object"
+    },
+    "ParseResult": {
+      "additionalProperties": false,
+      "properties": {
+        "character_count": {
+          "title": "Character Count",
+          "type": "integer"
+        },
+        "contact": {
+          "$ref": "#/$defs/Contact"
+        },
+        "education": {
+          "items": {
+            "$ref": "#/$defs/Education"
+          },
+          "title": "Education",
+          "type": "array"
+        },
+        "experience": {
+          "items": {
+            "$ref": "#/$defs/Experience"
+          },
+          "title": "Experience",
+          "type": "array"
+        },
+        "experience_months": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Experience Months"
+        },
+        "page_count": {
+          "title": "Page Count",
+          "type": "integer"
+        },
+        "sections": {
+          "items": {
+            "$ref": "#/$defs/Section"
+          },
+          "title": "Sections",
+          "type": "array"
+        },
+        "skills": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Skills",
+          "type": "array"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "visibility": {
+          "enum": [
+            "readable",
+            "partial",
+            "invisible"
+          ],
+          "title": "Visibility",
+          "type": "string"
+        },
+        "warnings": {
+          "items": {
+            "enum": [
+              "no_text_layer",
+              "little_text",
+              "scrambled_order",
+              "missing_contact",
+              "missing_sections",
+              "unparsed_dates"
+            ],
+            "type": "string"
+          },
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "visibility",
+        "page_count",
+        "character_count",
+        "text",
+        "contact",
+        "sections",
+        "experience",
+        "experience_months",
+        "education",
+        "skills",
+        "warnings"
+      ],
+      "title": "ParseResult",
+      "type": "object"
+    },
+    "Parsed": {
+      "additionalProperties": false,
+      "properties": {
+        "outcome": {
+          "const": "parsed",
+          "title": "Outcome",
+          "type": "string"
+        },
+        "result": {
+          "$ref": "#/$defs/ParseResult"
+        }
+      },
+      "required": [
+        "outcome",
+        "result"
+      ],
+      "title": "Parsed",
+      "type": "object"
+    },
+    "Rejected": {
+      "additionalProperties": false,
+      "properties": {
+        "outcome": {
+          "const": "rejected",
+          "title": "Outcome",
+          "type": "string"
+        },
+        "reason": {
+          "enum": [
+            "too_many_pages",
+            "encrypted",
+            "corrupt",
+            "timed_out"
+          ],
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "outcome",
+        "reason"
+      ],
+      "title": "Rejected",
+      "type": "object"
+    },
+    "Section": {
+      "additionalProperties": false,
+      "properties": {
+        "heading": {
+          "title": "Heading",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "summary",
+            "experience",
+            "education",
+            "skills",
+            "other"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "heading",
+        "text"
+      ],
+      "title": "Section",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "anyOf": [
+    {
+      "$ref": "#/$defs/Parsed"
+    },
+    {
+      "$ref": "#/$defs/Rejected"
+    }
+  ],
+  "title": "ParseOutcome"
+}
