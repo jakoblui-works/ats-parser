@@ -4,10 +4,10 @@ import dataclasses
 
 import pytest
 
-from app.ats.fields import extract_contact
-from app.ats.parser import parse_pdf
-from app.ats.schemas import Parsed, ParseResult
-from app.ats.sections import find_sections
+from ats_parser.fields import extract_contact
+from ats_parser.parser import parse_pdf
+from ats_parser.schemas import Parsed, ParseResult
+from ats_parser.sections import find_sections
 from tests.ats import samples
 from tests.ats.conftest import Parse
 

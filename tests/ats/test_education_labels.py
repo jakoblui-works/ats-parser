@@ -5,15 +5,17 @@ Recognised forms are only those the lists are sure to have. The "contains one" e
 which no reasonable list would hold.
 """
 
-from app.ats.education import extract_education
-from app.ats.schemas import Education
+from ats_parser.education import extract_education
+from ats_parser.schemas import Education
 
 DATES = "2011 - 2015"
 INSTITUTION = "Københavns Universitet"
 
 
 def _has_qualification(text: str) -> bool:
-    from app.ats.constants import QUALIFICATION  # Here, so the behavioural tests still run if it's missing or renamed.
+    from ats_parser.constants import (
+        QUALIFICATION,  # Here, so the behavioural tests still run if it's missing or renamed.
+    )
 
     return QUALIFICATION.search(text) is not None
 

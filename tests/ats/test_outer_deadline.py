@@ -4,9 +4,9 @@ import time
 
 import pytest
 
-from app.ats import parser
-from app.ats.extraction import ExtractedText
-from app.ats.parser import parse_pdf
+from ats_parser import parser
+from ats_parser.extraction import ExtractedText
+from ats_parser.parser import parse_pdf
 from tests.ats import samples
 from tests.ats.conftest import deadline
 
@@ -30,7 +30,7 @@ def test_a_hang_inside_parse_pdf_fails_instead_of_passing(monkeypatch: pytest.Mo
 
 def test_a_hang_inside_the_extraction_stage_is_not_turned_into_a_rejection(monkeypatch: pytest.MonkeyPatch) -> None:
     """The real extract_text wraps its work in `except Exception`; the deadline must get through it."""
-    from app.ats import extraction
+    from ats_parser import extraction
 
     monkeypatch.setattr(extraction, "_read", _hang)
 

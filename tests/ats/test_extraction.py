@@ -1,12 +1,12 @@
-"""Outcomes for each form of the sample CV, through the in-process parser and through the real child."""
+"""Outcomes for each form of the sample CV."""
 
 from collections.abc import Callable
 
 import pytest
 
-from app.ats.constants import MAX_FILE_BYTES, MAX_PAGES, MAX_TEXT_CHARS
-from app.ats.extraction import Rejection, extract_text
-from app.ats.schemas import Parsed, Rejected
+from ats_parser.constants import MAX_FILE_BYTES, MAX_PAGES, MAX_TEXT_CHARS
+from ats_parser.extraction import Rejection, extract_text
+from ats_parser.schemas import Parsed, Rejected
 from tests.ats import samples
 from tests.ats.conftest import Parse
 

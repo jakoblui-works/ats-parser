@@ -1,17 +1,15 @@
 """The stages after extraction: any text is survived, and a failure in one is told apart from a corrupt file."""
 
-import sys
-
 import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-from app.ats import sandbox
-from app.ats.constants import MAX_TEXT_CHARS
-from app.ats.fields import extract_contact
-from app.ats.sandbox import ParserFailed, parse_in_child
-from app.ats.schemas import Rejected
-from app.ats.sections import find_sections
+from ats_parser import parser
+from ats_parser.constants import MAX_TEXT_CHARS
+from ats_parser.fields import extract_contact
+from ats_parser.parser import parse_pdf
+from ats_parser.schemas import Rejected
+from ats_parser.sections import find_sections
 from tests.ats import samples
 from tests.ats.conftest import deadline
 
@@ -51,28 +49,21 @@ def test_hostile_long_lines_are_handled_within_a_deadline(unit: str) -> None:
         extract_contact(lines)
 
 
-def _child_with_broken_extract_contact(monkeypatch: pytest.MonkeyPatch, error: str) -> None:
-    code = (
-        "import app.ats.parser as parser\n"
-        "def broken(*args, **kwargs):\n"
-        f"    raise {error}\n"
-        "parser.extract_contact = broken\n"
-        "import app.ats.child as child\n"
-        "child.main()\n"
-    )
-    monkeypatch.setattr(sandbox, "CHILD_COMMAND", (sys.executable, "-c", code))
+def _break_extract_contact(monkeypatch: pytest.MonkeyPatch, error: BaseException) -> None:
+    def broken(*args: object, **kwargs: object) -> None:
+        raise error
+
+    monkeypatch.setattr(parser, "extract_contact", broken)
 
 
-@pytest.mark.asyncio
-async def test_a_bug_in_a_later_stage_is_parser_failed_not_corrupt(monkeypatch: pytest.MonkeyPatch) -> None:
-    _child_with_broken_extract_contact(monkeypatch, "RuntimeError('stage bug')")
+def test_a_bug_in_a_later_stage_is_not_turned_into_a_corrupt_cv(monkeypatch: pytest.MonkeyPatch) -> None:
+    _break_extract_contact(monkeypatch, RuntimeError("stage bug"))
 
-    with pytest.raises(ParserFailed):
-        await parse_in_child(samples.clean_pdf())
+    with pytest.raises(RuntimeError, match="stage bug"):
+        parse_pdf(samples.clean_pdf())
 
 
-@pytest.mark.asyncio
-async def test_running_out_of_memory_in_a_later_stage_is_a_corrupt_cv(monkeypatch: pytest.MonkeyPatch) -> None:
-    _child_with_broken_extract_contact(monkeypatch, "MemoryError")
+def test_running_out_of_memory_in_a_later_stage_is_a_corrupt_cv(monkeypatch: pytest.MonkeyPatch) -> None:
+    _break_extract_contact(monkeypatch, MemoryError())
 
-    assert await parse_in_child(samples.clean_pdf()) == Rejected(reason="corrupt")
+    assert parse_pdf(samples.clean_pdf()) == Rejected(reason="corrupt")

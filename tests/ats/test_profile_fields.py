@@ -4,17 +4,17 @@ import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-from app.ats import constants
-from app.ats.constants import (
+from ats_parser import constants
+from ats_parser.constants import (
     MAX_EDUCATION_ENTRIES,
     MAX_ENTRY_CHARS,
     MAX_TEXT_CHARS,
 )
-from app.ats.education import extract_education
-from app.ats.experience import extract_experience
-from app.ats.fields import extract_contact
-from app.ats.parser import parse_pdf
-from app.ats.schemas import Experience, Parsed
+from ats_parser.education import extract_education
+from ats_parser.experience import extract_experience
+from ats_parser.fields import extract_contact
+from ats_parser.parser import parse_pdf
+from ats_parser.schemas import Experience, Parsed
 from tests.ats import samples
 from tests.ats.conftest import deadline
 from tests.ats.test_experience import TODAY

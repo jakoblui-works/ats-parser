@@ -7,35 +7,10 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    services:
-      database:
-        image: postgres:18
-        env:
-          POSTGRES_DB: site_db
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres -d site_db"
-          --health-interval 2s
-          --health-timeout 3s
-          --health-retries 15
-    env:
-      DATABASE__HOST: localhost
-      DATABASE__USER: postgres
-      DATABASE__PASSWORD: postgres
-      DATABASE__NAME: site_db
-      REDIS__HOST: localhost
-      REDIS__PASSWORD: dev
-      S3__ACCESS_KEY_ID: GK000000000000000000000000
-      S3__SECRET_ACCESS_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
-      S3__BUCKET: bucket
     steps:
       - uses: actions/checkout@v7
       - name: Install uv
         uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
-      - run: ./scripts/garage-ci-init.sh
       - run: uv sync --locked
       - run: uv run ruff check
       - run: uv run ruff format --check

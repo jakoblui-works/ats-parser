@@ -4,7 +4,7 @@ a title or employer left out: each is only named when its own words say what it 
 from datetime import date
 from typing import Literal
 
-from app.ats.constants import (
+from ats_parser.constants import (
     BULLETS,
     COMPANY_MARKER,
     DATE_PARTS,
@@ -20,8 +20,8 @@ from app.ats.constants import (
     TITLE_WORD,
     YEAR,
 )
-from app.ats.schemas import Experience
-from app.ats.sections import heading_kind
+from ats_parser.schemas import Experience
+from ats_parser.sections import heading_kind
 
 
 def extract_experience(section_lines: list[str], today: date) -> list[Experience]:

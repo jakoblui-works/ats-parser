@@ -1,13 +1,10 @@
 """Any bytes give a Parsed or a Rejected, never an exception."""
 
-import asyncio
-
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-from app.ats.parser import parse_pdf
-from app.ats.sandbox import parse_in_child
-from app.ats.schemas import Parsed, Rejected
+from ats_parser.parser import parse_pdf
+from ats_parser.schemas import Parsed, Rejected
 from tests.ats import samples
 
 VALID = samples.clean_pdf()
@@ -46,9 +43,3 @@ def test_any_bytes_give_an_outcome(data: bytes) -> None:
 @given(data=mutated_pdfs())
 def test_mutated_samples_give_an_outcome(data: bytes) -> None:
     assert isinstance(parse_pdf(data), Parsed | Rejected)
-
-
-@settings(SLOW, max_examples=8)
-@given(data=st.one_of(any_bytes, mutated_pdfs()))
-def test_any_bytes_through_the_real_child_give_an_outcome(data: bytes) -> None:
-    assert isinstance(asyncio.run(parse_in_child(data)), Parsed | Rejected)

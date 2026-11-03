@@ -1,6 +1,6 @@
 """Contact details from the lines of the CV. Each is None or empty if it isn't found."""
 
-from app.ats.constants import (
+from ats_parser.constants import (
     CV_LABEL,
     EMAIL,
     ENTRY_SEPARATOR,
@@ -18,8 +18,8 @@ from app.ats.constants import (
     TITLE_EDGES,
     YEAR,
 )
-from app.ats.schemas import Contact
-from app.ats.sections import heading_kind
+from ats_parser.schemas import Contact
+from ats_parser.sections import heading_kind
 
 
 def extract_contact(lines: list[str]) -> Contact:

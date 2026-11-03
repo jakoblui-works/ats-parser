@@ -11,8 +11,8 @@ from typing import Literal
 from hypothesis import given
 from hypothesis import strategies as st
 
-from app.ats.experience import extract_experience
-from app.ats.schemas import Experience
+from ats_parser.experience import extract_experience
+from ats_parser.schemas import Experience
 
 TODAY = date(2026, 6, 15)
 DATES = "Jan 2020 - Mar 2021"
@@ -35,7 +35,7 @@ def _one(*lines: str) -> Experience:
 
 
 def _has_title_word(text: str) -> bool:
-    from app.ats.constants import TITLE_WORD  # Here, so the behavioural tests still run if it's missing or renamed.
+    from ats_parser.constants import TITLE_WORD  # Here, so the behavioural tests still run if it's missing or renamed.
 
     return TITLE_WORD.search(text) is not None
 

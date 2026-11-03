@@ -1,7 +1,7 @@
 """Finds the CV's sections from their headings, which is about all a simple parser has to go on."""
 
-from app.ats.constants import HEADINGS, MAX_HEADING_WORDS, MAX_LINE_CHARS, NOT_HEADING_TEXT
-from app.ats.schemas import Section, SectionKind
+from ats_parser.constants import HEADINGS, MAX_HEADING_WORDS, MAX_LINE_CHARS, NOT_HEADING_TEXT
+from ats_parser.schemas import Section, SectionKind
 
 
 def _normalised(heading: str) -> str:

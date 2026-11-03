@@ -12,8 +12,8 @@ from pdfminer.pdfinterp import PDFPageInterpreter, PDFResourceManager
 from pdfminer.pdfpage import PDFPage
 from pdfminer.pdfparser import PDFParser
 
-from app.ats.constants import MAX_PAGES, MAX_TEXT_CHARS, ROW_TOLERANCE_POINTS
-from app.ats.schemas import RejectionReason
+from ats_parser.constants import MAX_PAGES, MAX_TEXT_CHARS, ROW_TOLERANCE_POINTS
+from ats_parser.schemas import RejectionReason
 
 # pdfminer's logs quote the file, CV text included, so none of them go anywhere, whatever the root level is.
 logging.getLogger("pdfminer").setLevel(logging.CRITICAL + 1)
@@ -73,7 +73,7 @@ def extract_text(pdf: bytes) -> ExtractedText:
     """Reads the text a simple parser would, top to bottom across the whole page.
 
     A two-column CV comes out with its columns interleaved, and that's the point: the page shows it beside the PDF.
-    Runs with no limits of its own, so untrusted files only ever go through it in the child (see sandbox.py).
+    Runs with no time limit of its own, so the host must bound the call, as it must for untrusted files.
 
     Raises Rejection. Encrypted files are told apart by pdfminer's own error type, and nothing else is: it raises
     all sorts while reading a broken file (KeyError, zlib.error, RecursionError, MemoryError and more), so whatever

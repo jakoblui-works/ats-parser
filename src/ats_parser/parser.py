@@ -1,14 +1,14 @@
-"""The parser's stages, in order. Runs inside the child, so a slow stage is stopped by the same time limit."""
+"""The parser's stages, in order. Has no time limit of its own: the host must bound the call."""
 
 from datetime import date
 
-from app.ats.constants import MIN_READABLE_CHARS_PER_PAGE, UNMAPPED_CHARACTER
-from app.ats.education import extract_education
-from app.ats.experience import extract_experience, total_months
-from app.ats.extraction import ExtractedPage, ExtractedText, Rejection, extract_text
-from app.ats.fields import extract_contact
-from app.ats.schemas import Contact, Parsed, ParseResult, Rejected, Section, SectionKind, Visibility, WarningCode
-from app.ats.sections import find_sections
+from ats_parser.constants import MIN_READABLE_CHARS_PER_PAGE, UNMAPPED_CHARACTER
+from ats_parser.education import extract_education
+from ats_parser.experience import extract_experience, total_months
+from ats_parser.extraction import ExtractedPage, ExtractedText, Rejection, extract_text
+from ats_parser.fields import extract_contact
+from ats_parser.schemas import Contact, Parsed, ParseResult, Rejected, Section, SectionKind, Visibility, WarningCode
+from ats_parser.sections import find_sections
 
 
 def parse_pdf(pdf: bytes) -> Parsed | Rejected:

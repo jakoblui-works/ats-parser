@@ -3,7 +3,7 @@ Each part is named by its words alone, and only when they say which it is: a lin
 
 from typing import Literal
 
-from app.ats.constants import (
+from ats_parser.constants import (
     DATE_RANGE,
     EXAM,
     INSTITUTION,
@@ -12,8 +12,8 @@ from app.ats.constants import (
     MAX_LINE_CHARS,
     QUALIFICATION,
 )
-from app.ats.experience import entry_candidates, is_prose, starts_with_dates, years_are_clear
-from app.ats.schemas import Education
+from ats_parser.experience import entry_candidates, is_prose, starts_with_dates, years_are_clear
+from ats_parser.schemas import Education
 
 
 def extract_education(section_lines: list[str]) -> list[Education]:

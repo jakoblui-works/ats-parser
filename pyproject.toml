@@ -1,19 +1,12 @@
 [project]
 name = "ats-service"
 version = "0.1.0"
-description = "Taskiq worker for the ATS check"
+description = "PDF parser for the ATS check"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "aioboto3>=15.5.0",
-    "alembic>=1.20.1",
-    "asyncpg>=0.32.0",
     "pdfminer-six>=20260107",
     "pydantic>=2.14.1",
-    "pydantic-settings>=2.16.2",
-    "sqlalchemy[asyncio]>=2.1.6",
-    "taskiq>=0.13.0",
-    "taskiq-redis>=1.2.4",
 ]
 
 [dependency-groups]
@@ -25,20 +18,19 @@ dev = [
     "pytest-asyncio>=1.4.1",
     "reportlab>=5.1.0",
     "ruff>=0.17.3",
-    "types-aioboto3[s3]>=15.5.0",
 ]
 
 [tool.pytest.ini_options]
 asyncio_mode = "strict"
 asyncio_default_fixture_loop_scope = "function"
 addopts = "--import-mode=importlib"
-pythonpath = ["."]
+pythonpath = [".", "src"]
 testpaths = ["tests"]
 
 [tool.mypy]
 strict = true
 plugins = ["pydantic.mypy"]
-files = ["app", "tests", "migrations", "scripts"]
+files = ["src", "tests"]
 
 [tool.uv]
 required-version = ">=0.12.21"
@@ -49,6 +41,3 @@ target-version = "py313"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "ANN"]
-
-[tool.ruff.lint.per-file-ignores]
-"migrations/versions/*" = ["F401"]

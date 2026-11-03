@@ -1,15 +1,12 @@
 import signal
-from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
+from collections.abc import Awaitable, Callable, Iterator
 from contextlib import contextmanager
 from types import FrameType
 
 import pytest
-import pytest_asyncio
 
-from app.ats.parser import parse_pdf
-from app.ats.sandbox import parse_in_child
-from app.ats.schemas import Parsed, Rejected
-from tests.ats.stored import Store
+from ats_parser.parser import parse_pdf
+from ats_parser.schemas import Parsed, Rejected
 
 Parse = Callable[[bytes], Awaitable[Parsed | Rejected]]
 
@@ -20,8 +17,8 @@ REPEAT_SECONDS = 5
 
 
 def _deadline_passed(signum: int, frame: FrameType | None) -> None:
-    # pytest.fail.Exception is a BaseException, so the parser's `except Exception` blocks and the sandbox's
-    # `except TimeoutError` can't turn a hang into a rejection and a pass.
+    # pytest.fail.Exception is a BaseException, so the parser's `except Exception` blocks
+    # can't turn a hang into a rejection and a pass.
     pytest.fail(f"ran past the outer deadline of {OUTER_DEADLINE_SECONDS}s", pytrace=False)
 
 
@@ -47,14 +44,7 @@ async def _in_process(pdf: bytes) -> Parsed | Rejected:
     return parse_pdf(pdf)
 
 
-@pytest.fixture(params=["in_process", "child"])
-def parse(request: pytest.FixtureRequest) -> Parse:
-    """Both ways of parsing a file give the same outcomes; the child is the production path."""
-    return _in_process if request.param == "in_process" else parse_in_child
-
-
-@pytest_asyncio.fixture
-async def store() -> AsyncIterator[Store]:
-    store = Store()
-    yield store
-    await store.clean_up()
+@pytest.fixture
+def parse() -> Parse:
+    """The way a test parses a file; swap it to run the suite through another route."""
+    return _in_process

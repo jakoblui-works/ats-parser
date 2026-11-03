@@ -6,12 +6,12 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from app.ats.constants import MAX_EXPERIENCE_ENTRIES
-from app.ats.experience import extract_experience, total_months
-from app.ats.fields import extract_contact
-from app.ats.parser import parse_pdf
-from app.ats.schemas import Experience, Parsed
-from app.ats.sections import heading_kind
+from ats_parser.constants import MAX_EXPERIENCE_ENTRIES
+from ats_parser.experience import extract_experience, total_months
+from ats_parser.fields import extract_contact
+from ats_parser.parser import parse_pdf
+from ats_parser.schemas import Experience, Parsed
+from ats_parser.sections import heading_kind
 from tests.ats import samples
 from tests.ats.conftest import deadline
 

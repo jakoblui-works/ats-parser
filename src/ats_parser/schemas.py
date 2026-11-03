@@ -15,7 +15,7 @@ WarningCode = Literal[
 RejectionReason = Literal["too_many_pages", "encrypted", "corrupt", "timed_out"]
 
 
-# The ats.parse.v1 contract, mirrored in the api's app/ats/schemas.py. Field names are the contract.
+# The result's shape. Field names are the contract (see tests/ats/test_contract.py).
 class Contact(BaseModel):
     name: str | None = None
     email: str | None = None
