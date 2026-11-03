@@ -19,6 +19,8 @@ The JSON's shape is in `schema/parse_outcome.schema.json`, generated from the mo
 The parser stands in for a weak ATS, so the page can say "if this parses your CV, you probably don't have to worry". It does what a strong ATS does only where that can be done fully and reliably (contact details, dates, headings). Where it can only be done in part, it shows nothing rather than guess, and it never puts a value in the wrong field. An empty field is a fair false alarm; a city shown as the employer would be false reassurance. Reading order is the simple one, with no column detection, and job titles, employers, institutions and qualifications are recognised by their own words, never by position.
 
 ## Development
+The parser must also support Pyodide's Python (3.14 for Pyodide 314.x), which CI tests alongside 3.13.
+
 ```sh
 uv sync --locked
 uv run --locked ruff check

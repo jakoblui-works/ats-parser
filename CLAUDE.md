@@ -35,6 +35,7 @@ The parser stands in for a weak ATS, so the page can say "if this parses your CV
 
 ## Rules
 - Ruff (line length 120, rules E, F, I, ANN) and mypy strict; both cover `src`, `tests`, `scripts`. Python 3.13, uv.
+- The parser must also support Pyodide's Python (3.14 for Pyodide 314.x), which CI tests alongside 3.13; the wheel is built and released from the 3.13 job only.
 - Tests test behaviour, not tuning: no hard-coded scores or constants. Use Hypothesis for properties where it fits.
 - Sample CVs are invented; no real people's data.
 - Never put CV text in logs, exception messages, prints or test failure output. Only logs have a test behind them (`tests/ats/test_privacy.py`, via `caplog`); the rest is a rule. pdfminer's logger is silenced on purpose (`src/ats_parser/extraction.py`, near the top). All test inputs are invented, so failure output never carries a real CV; a check meant to run on files that aren't invented must fail without printing values, as `_outcome_of` does (`pytest.fail(..., pytrace=False)`, `tests/test_outcome_contract.py:65`).
