@@ -26,12 +26,12 @@ uv run python scripts/generate_schema.py   # after changing the models in schema
 
 `RejectionReason` includes `timed_out`, and it is in the published schema, but the parser never returns it: it is for the host, which applies its own timeout. Removing it is a contract change.
 
-## Design rule: the worst-case principle
-The parser stands in for a weak ATS, so the page can say "if this parses your CV, you probably don't have to worry".
-- It does what a strong ATS does only where that can be done fully and reliably (contact details, dates, headings). Where it can only be done in part, it shows nothing rather than guess.
-- A value is never put in the wrong field. Empty fields are fair false alarms; a city shown as the employer is false reassurance.
+## Design rule: a simple ATS, checked by the visitor
+The parser extracts the way a simple ATS does, mistakes included; ats-web shows what came out and asks the visitor to check it.
+- Use common, simple heuristics (top lines, feature scoring, position), not the strongest possible. Skip noise a real ATS ignores (page numbers, `CV` labels, repeated headers and footers).
+- A wrong value is shown as extracted, not hidden. Verdict and warnings state facts, never a judgement of the CV.
 - Reading order stays the simple one: no column detection.
-- Titles and employers are named only by their own words (title words, legal forms), never by position. Institutions and qualifications likewise (institution and qualification words).
+- Some fields still follow the older, stricter rules (titles, employers, institutions and qualifications named only by their own words) until they're replaced.
 
 ## Rules
 - Ruff (line length 120, rules E, F, I, ANN) and mypy strict; both cover `src`, `tests`, `scripts`. Python 3.13, uv.
