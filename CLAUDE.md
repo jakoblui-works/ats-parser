@@ -26,12 +26,12 @@ uv run python scripts/generate_schema.py   # after changing the models in schema
 
 `RejectionReason` includes `timed_out`, and it is in the published schema, but the parser never returns it: it is for the host, which applies its own timeout. Removing it is a contract change.
 
-## Design rule: a simple ATS, checked by the visitor
-The parser extracts the way a simple ATS does, mistakes included; ats-web shows what came out and asks the visitor to check it.
-- Use common, simple heuristics (top lines, feature scoring, position), not the strongest possible. Skip noise a real ATS ignores (page numbers, `CV` labels, repeated headers and footers).
-- A wrong value is shown as extracted, not hidden. Verdict and warnings state facts, never a judgement of the CV.
+## Design rule: what a recruiter sees in a basic ATS
+The parser shows what a recruiter might see when a CV arrives in a basic ATS, using a basic parser's plain, well-known methods; ats-web shows what came out and asks the visitor to check it. It's weaker than commercial ATSs because it's simple, so "passes here, probably passes everywhere".
+- Plain methods only: text pieces per font size, rows by baseline, patterns for contact details and dates, heading lists plus bold all-caps lines, feature scoring (`scoring.best`), an entry's lines on both sides of its dates. Skip noise a basic parser ignores (page numbers, `CV` labels).
+- No handicaps (rules that hide information a basic parser would use) and no edge-case tuning (patches for unusual layouts). A wrong value is shown as extracted; verdict and warnings state facts.
 - Reading order stays the simple one: no column detection.
-- Some fields still follow the older, stricter rules (titles, employers, institutions and qualifications named only by their own words) until they're replaced.
+- Job titles and employers, institutions and qualifications are named by their own words first, then the other by elimination from the texts left (a place is the last choice). With neither named, both stay empty.
 
 ## Rules
 - Ruff (line length 120, rules E, F, I, ANN) and mypy strict; both cover `src`, `tests`, `scripts`. Python 3.13, uv.

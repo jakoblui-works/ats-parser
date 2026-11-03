@@ -1,35 +1,22 @@
-"""A job's title and company are each named only by their own words, never by position or by each other: a value in
-the wrong field is worse than an empty one.
+"""A job's title and employer: the title is named by a title word, and the employer is picked from the other texts by
+scoring, as a simple ATS does, or by elimination when one is left. These check what wins, never the scores.
 
-Titles use only words `TITLE_WORD` is sure to have and companies only legal forms `COMPANY_MARKER` is sure to have.
-Neutral phrases are made of words no reasonable list of either would hold.
+Titles use only words `TITLE_WORD` is sure to have. The employers here have no legal form, so they're found by scoring
+or elimination, not by a word list; the places have the shapes the location is found by.
 """
 
 from datetime import date
-from typing import Literal
-
-from hypothesis import given
-from hypothesis import strategies as st
 
 from ats_parser.experience import extract_experience
 from ats_parser.schemas import Experience
+from tests.ats.lines import plain
 
 TODAY = date(2026, 6, 15)
 DATES = "Jan 2020 - Mar 2021"
 
-Kind = Literal["title", "company", "neutral", "both"]
-
-ENGLISH_TITLE_WORDS = ["developer", "engineer", "manager", "consultant", "analyst", "designer"]
-DANISH_TITLE_WORDS = ["udvikler", "konsulent", "leder", "ingeniør"]
-COMPANY_MARKERS = ["A/S", "ApS", "Ltd", "Inc", "GmbH", "LLC"]
-# None of these is, starts, contains or ends in a title word or a legal form.
-NEUTRAL_WORDS = ["Northwind", "Bluebird", "Granite", "Copperfield", "Lantern", "Harbour", "Fjordline", "Platform"]
-NEUTRAL_PHRASES = ["Platform Team", "Northwind", "Barista", "Bluebird Lantern", "Fjordline", "Copperfield Harbour"]
-SEPARATORS = [" | ", " – ", " - ", " at ", " hos ", " ved "]
-
 
 def _one(*lines: str) -> Experience:
-    entries = extract_experience(list(lines), TODAY)
+    entries = extract_experience(plain(list(lines)), TODAY)
     assert len(entries) == 1, entries
     return entries[0]
 
@@ -40,77 +27,30 @@ def _has_title_word(text: str) -> bool:
     return TITLE_WORD.search(text) is not None
 
 
-_spelled = st.sampled_from([str.lower, str.capitalize, str.title, str.upper])
-_whole_title = st.tuples(
-    st.sampled_from(["", "Senior ", "Junior ", "Principal "]),
-    st.sampled_from(ENGLISH_TITLE_WORDS + DANISH_TITLE_WORDS),
-    _spelled,
-).map(lambda parts: parts[0] + parts[2](parts[1]))
-# A Danish compound ending in a title word: "Softwareudvikler", "Projektleder".
-_compound_title = st.tuples(
-    st.sampled_from(["Software", "Projekt", "Salgs", "Data", "Senior"]),
-    st.sampled_from(DANISH_TITLE_WORDS),
-).map(lambda parts: parts[0] + parts[1])
-TITLES = st.one_of(_whole_title, _compound_title)
-
-COMPANIES = st.tuples(
-    st.lists(st.sampled_from(NEUTRAL_WORDS), min_size=1, max_size=2, unique=True),
-    st.sampled_from(COMPANY_MARKERS),
-).map(lambda parts: " ".join([*parts[0], parts[1]]))
-
-NEUTRALS = st.sampled_from(NEUTRAL_PHRASES)
-# A title word and a legal form in one text: "Senior Developer Northwind Ltd".
-BOTHS = st.tuples(TITLES, COMPANIES).map(" ".join)
-
-CANDIDATES: st.SearchStrategy[tuple[Kind, str]] = st.one_of(
-    TITLES.map(lambda text: ("title", text)),
-    COMPANIES.map(lambda text: ("company", text)),
-    NEUTRALS.map(lambda text: ("neutral", text)),
-    BOTHS.map(lambda text: ("both", text)),
-)
+# --- 1. An employer with no legal form is still the employer, beside a title ---
 
 
-def _layout(first: str, second: str, layout: str, separator: str) -> list[str]:
-    """The job's lines with `first` above (or before the separator) and `second` below (or after it)."""
-    match layout:
-        case "two lines above":
-            return [first, second, DATES]
-        case "one line above":
-            return [f"{first}{separator}{second}", DATES]
-        case "beside, dates last":
-            return [f"{first}{separator}{second}  {DATES}"]
-        case _:
-            return [f"{DATES}  {first}{separator}{second}"]
+def test_an_employer_without_a_legal_form_is_found_beside_the_title() -> None:
+    for lines in (
+        ["Example Widgets", "Senior Analyst", DATES],  # The employer above the title.
+        [f"Example Widgets | Senior Analyst  {DATES}"],  # Both beside the dates, the employer first.
+    ):
+        job = _one(*lines)
+        assert (job.title, job.company) == ("Senior Analyst", "Example Widgets"), lines
+        assert (job.start, job.end) == ("Jan 2020", "Mar 2021")  # The job stays, whatever its labels.
 
 
-LAYOUTS = st.sampled_from(["two lines above", "one line above", "beside, dates last", "beside, dates first"])
+# --- 2. A place isn't the employer while another text is left ---
 
 
-# --- 2. A field is filled only by a text of its own kind, alone ---
-
-
-def _named(kind: Kind, candidates: list[tuple[Kind, str]]) -> str | None:
-    """The one text of this kind, or None if there's none or more than one."""
-    texts = [text for candidate_kind, text in candidates if candidate_kind == kind]
-    return texts[0] if len(texts) == 1 else None
-
-
-@given(
-    first=CANDIDATES,
-    second=CANDIDATES,
-    layout=LAYOUTS,
-    separator=st.sampled_from(SEPARATORS),
-)
-def test_a_field_is_filled_only_by_a_text_of_its_own_kind_alone(
-    first: tuple[Kind, str], second: tuple[Kind, str], layout: str, separator: str
-) -> None:
-    job = _one(*_layout(first[1], second[1], layout, separator))
-
-    assert (job.start, job.end) == ("Jan 2020", "Mar 2021")  # The job stays, whatever its labels.
-    assert job.months is not None
-    # Two of a kind leave that field empty; a text with both kinds of word, or neither, never fills one.
-    assert job.title == _named("title", [first, second])
-    assert job.company == _named("company", [first, second])
+def test_a_place_is_not_the_employer_when_another_text_is_left() -> None:
+    # The place comes before the employer each time, so taking the first text left would take the place.
+    for lines in (
+        ["Lakeside, Exampleshire", "Senior Analyst | Example Widgets", DATES],  # A place and region on a line above.
+        [f"Senior Analyst | 2100 Exampleby | Example Widgets  {DATES}"],  # A postcode and place beside the dates.
+    ):
+        job = _one(*lines)
+        assert (job.title, job.company) == ("Senior Analyst", "Example Widgets"), lines
 
 
 # --- Each section decides its own layout ---
@@ -132,14 +72,14 @@ def test_sections_joined_by_a_blank_line_each_keep_their_own_layout() -> None:
         "Copperfield Harbour GmbH",
     ]
 
-    jobs = extract_experience(lines, TODAY)
+    jobs = extract_experience(plain(lines), TODAY)
 
-    # Lines below the dates are never used, so the dates-first jobs stay unnamed rather than the second one taking the
-    # first one's lines, which sit just above its dates.
+    # In the dates-first section each job is named by the lines below its dates, and never by the previous job's lines,
+    # which sit just above its dates.
     assert [(job.title, job.company, job.start, job.end) for job in jobs] == [
         ("Senior Developer", "Northwind Harbour Ltd", "Jan 2022", "Mar 2024"),
-        (None, None, "Jan 2019", "Dec 2021"),
-        (None, None, "Jan 2016", "Dec 2018"),
+        ("Data Analyst", "Bluebird Lantern ApS", "Jan 2019", "Dec 2021"),
+        ("Junior Designer", "Copperfield Harbour GmbH", "Jan 2016", "Dec 2018"),
     ]
     assert all(job.months is not None for job in jobs)
 
@@ -157,8 +97,7 @@ def test_a_danish_title_word_ending_a_compound_is_a_title_word() -> None:
 
 def test_a_danish_title_word_starting_a_word_is_not_a_title_word() -> None:
     assert not _has_title_word("Lederskabsakademi")
-    # Beside a title it isn't a second title, which would leave the title empty, and it names nothing itself.
-    job = _one("Lederskabsakademi", "Senior Developer", DATES)
-    assert (job.title, job.company) == ("Senior Developer", None)
+    # Beside a title it isn't a second title, and on its own it isn't the title.
+    assert _one("Lederskabsakademi", "Senior Developer", DATES).title == "Senior Developer"
     assert _one("Lederskabsakademi", "Platform Team", DATES).title is None
     assert _one(f"Lederskabsakademi {DATES}").title is None

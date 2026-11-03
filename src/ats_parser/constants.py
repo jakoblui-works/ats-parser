@@ -14,6 +14,9 @@ MAX_TEXT_CHARS = 200_000
 
 # Lines whose bottom edges are this close read as one row, so a big name beside small text on one baseline stays whole.
 ROW_TOLERANCE_POINTS = 3.0
+# A line's text is read as separate pieces where the font size changes by this factor, as text drawn in different
+# fonts reaches a simple parser as separate items.
+SIZE_CHANGE = 1.2
 
 # Below this average, blank pages aside, a document is only partly readable, as when a scan has a typed header.
 MIN_READABLE_CHARS_PER_PAGE = 200
@@ -179,6 +182,8 @@ DATE_RANGE = re.compile(
     rf"(?P<end>{_DATE}|{_ONGOING})(?![\w/-])",
     re.IGNORECASE,
 )
+# A month name alone, as a word: never the place beside a postcode (`Mar 2023`).
+MONTH_NAME = re.compile(rf"(?:{_MONTH_NAME})\.?", re.IGNORECASE)
 # Only ever reads text DATE_RANGE has matched, so it can be loose: a `2026-03`, or a day, a month and a year.
 DATE_PARTS = re.compile(
     rf"(\d{{4}})-(\d{{2}})|(?:\d{{1,2}}\.?\s+)?(?:({_MONTH_NAME})\W*(?:\d{{1,2}},\s+)?|(\d{{1,2}})[/.-])?(\d{{2,4}})",
@@ -189,7 +194,9 @@ MONTH_NUMBERS = {
 } | {"maj": 5, "okt": 10}
 # Separators left around a title once the dates are gone.
 TITLE_EDGES = " ()[]|,;:/-\u2012\u2013\u2014\u2015\u2212\u2022\u00b7"
-TITLE_LINES_ABOVE = 2
+TITLE_LINES_ABOVE = 2  # Lines read above and below an entry's dates.
+# A line ending in a full stop is a sentence from this many words; shorter, it's a name (`Example Widgets Inc.`).
+MIN_SENTENCE_WORDS = 5
 # A line starting like this, or ending in a full stop, is a bullet or a sentence: neither a job nor a title.
 BULLETS = ("\u2022", "\u00b7", "\u25aa", "\u25cf", "\uf0b7", "*", "-", "\u2013")
 
@@ -198,7 +205,13 @@ BULLETS = ("\u2022", "\u00b7", "\u25aa", "\u25cf", "\uf0b7", "*", "-", "\u2013")
 ENTRY_SEPARATOR = re.compile(r"\s{1,5}(?:[|•·–—-]|at|hos|ved)\s{1,5}")
 CV_LABEL = re.compile(r"\b(?:curriculum\s{1,3}vitae|cv|r[eé]sum[eé])\b", re.IGNORECASE)
 MIN_NAME_WORDS, MAX_NAME_WORDS = 2, 4
+# The name is looked for in this many lines at the top, noise aside: past them a CV has moved on.
+NAME_CANDIDATE_LINES = 5
 NAME_PUNCTUATION = "'’.-"
+# A location is a place and maybe its region and postcode (`2100 Exampleby`, `Lakeside, Exampleshire`): a few words,
+# the fewest of them short.
+MAX_LOCATION_WORDS, SHORT_LOCATION_WORDS = 5, 2
+POSTCODE = re.compile(r"(?<!\w)\d{4,5}(?!\w)")
 # Past this a line isn't an employer, an institution or a qualification.
 MAX_ENTRY_CHARS = 70
 MAX_EDUCATION_ENTRIES = 20
@@ -209,8 +222,8 @@ INSTITUTION = re.compile(
     r"|(?:universitet(?:et)?|skolen?|akademi(?:et)?|gymnasi(?:um|et)|seminari(?:um|et)|teknikum)\b",
     re.IGNORECASE,
 )
-# What a job's or a degree's lines are told apart by: their words alone, as a simple ATS's lists would. Position isn't
-# used, since CVs put title and employer either way round; a line with no word from a list is left unlabelled.
+# What a job's or a degree's lines are named by first, as a simple ATS's lists would; with one named, the other is
+# found by elimination (`experience.pick_two`). Position isn't used, since CVs put title and employer either way round.
 # Titles: English as whole words; Danish ones also end a compound (`Projektleder`), but never start one (`Lederskab`).
 TITLE_WORD = re.compile(
     r"\b(?:developer|engineer|programmer|architect|manager|director|head\s+of|consultant|analyst|designer|scientist"

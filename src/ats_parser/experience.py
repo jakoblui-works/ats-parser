@@ -1,8 +1,8 @@
-"""Jobs from the lines of the experience sections: any line with a date range is one. A missed job is honest, and so is
-a title or employer left out: each is only named when its own words say what it is."""
+"""Jobs from the lines of the experience sections: any line with a date range is one. Its title and employer are picked
+from the texts beside or above the dates the way a simple ATS does: by their own words, then by elimination."""
 
+from collections.abc import Callable
 from datetime import date
-from typing import Literal
 
 from ats_parser.constants import (
     BULLETS,
@@ -13,6 +13,7 @@ from ats_parser.constants import (
     MAX_ENTRY_CHARS,
     MAX_EXPERIENCE_ENTRIES,
     MAX_LINE_CHARS,
+    MIN_SENTENCE_WORDS,
     MONTH_NUMBERS,
     ONGOING,
     TITLE_EDGES,
@@ -20,12 +21,15 @@ from ats_parser.constants import (
     TITLE_WORD,
     YEAR,
 )
+from ats_parser.extraction import Line
+from ats_parser.fields import looks_like_place
 from ats_parser.schemas import Experience
+from ats_parser.scoring import best
 from ats_parser.sections import heading_kind
 
 
-def extract_experience(section_lines: list[str], today: date) -> list[Experience]:
-    lines = [line[:MAX_LINE_CHARS] for line in section_lines]
+def extract_experience(section_lines: list[Line], today: date) -> list[Experience]:
+    lines = [line.text[:MAX_LINE_CHARS] for line in section_lines]
     entries: list[Experience] = []
     dates_first, section_start = False, True
     for index, line in enumerate(lines):
@@ -67,9 +71,11 @@ def _span(start: str, end: str, today: date) -> tuple[int, int] | None:
     first = _month_number(start)
     now = today.year * 12 + today.month
     last = now if ongoing else _month_number(end, after=True)
-    if first is None or last is None or first >= now:  # `now` is next month: a job that hasn't started isn't one.
+    if first is None or last is None or (first > last and not ongoing):  # Only a written end can run backwards.
         return None
-    return (first, min(last, now)) if first <= last else None  # Months that haven't happened don't count.
+    if first >= now:  # `now` is next month: a job that hasn't started yet counts no months, but it's still listed.
+        return (first, first)
+    return (first, min(last, now))  # Months that haven't happened don't count.
 
 
 def years_are_clear(start: str, end: str) -> bool:
@@ -100,9 +106,10 @@ def _title_beside(line: str, start: int, end: int) -> str | None:
 
 
 def is_prose(line: str) -> bool:
-    """A bullet or a sentence: a date range in one is something that was done, and it can't be a title."""
+    """A bullet or a sentence: a date range in one is something that was done, and it can't be a title. A short line
+    ending in a full stop is a name like `Example Widgets Inc.`, not a sentence."""
     stripped = line.strip()
-    return stripped.startswith(BULLETS) or stripped.endswith(".")
+    return stripped.startswith(BULLETS) or (stripped.endswith(".") and len(stripped.split()) >= MIN_SENTENCE_WORDS)
 
 
 def lines_above(lines: list[str]) -> list[str]:
@@ -128,10 +135,30 @@ def is_entry_text(text: str) -> bool:
     )
 
 
+def lines_below(lines: list[str], *, titles_above_dates: bool) -> list[str]:
+    """The usable lines starting `lines`, stopping as `lines_above` does. Where entries are named above their dates
+    (`titles_above_dates`), a line just above the next dates is that entry's, so it stops there too."""
+    usable: list[str] = []
+    for position, line in enumerate(lines[:TITLE_LINES_ABOVE]):
+        below = line.strip()
+        if not below or is_prose(below) or DATE_RANGE.search(below):
+            break
+        following = lines[position + 1].strip() if position + 1 < len(lines) else ""
+        if titles_above_dates and not is_prose(following) and DATE_RANGE.search(following):
+            break
+        if trimmed := below.strip(TITLE_EDGES):
+            usable.append(trimmed)
+    return usable
+
+
 def entry_candidates(lines: list[str], index: int, beside: str | None, *, above: bool) -> list[str]:
-    """The texts that can name the entry dated on `lines[index]`: the parts of the text beside its dates, or else the
-    lines just above them (`above`). Never the lines below: they're the next entry's as often as this one's."""
-    texts = [beside] if beside else lines_above(lines[max(0, index - TITLE_LINES_ABOVE) : index]) if above else []
+    """The texts that can name the entry dated on `lines[index]`: the parts of the text beside its dates, the lines
+    just above them (`above`: not in a section whose entries start with their dates, where those are the previous
+    entry's), and the lines just below."""
+    texts = [beside] if beside else []
+    if above:
+        texts += lines_above(lines[max(0, index - TITLE_LINES_ABOVE) : index])
+    texts += lines_below(lines[index + 1 : index + 2 + TITLE_LINES_ABOVE], titles_above_dates=above)
     parts = [part.strip(TITLE_EDGES) for text in texts for part in ENTRY_SEPARATOR.split(text)]
     return [part for part in parts if is_entry_text(part)]
 
@@ -142,19 +169,33 @@ def starts_with_dates(lines: list[str], index: int, beside: str | None) -> bool:
     return not beside and not lines_above(lines[max(0, index - TITLE_LINES_ABOVE) : index])
 
 
-_Role = Literal["title", "company", "both", "neither"]
+def _has_title_word(text: str) -> bool:
+    return bool(TITLE_WORD.search(text))
 
 
-def _role(text: str) -> _Role:
-    title, company = bool(TITLE_WORD.search(text)), bool(COMPANY_MARKER.search(text))
-    return "both" if title and company else "title" if title else "company" if company else "neither"
+def _has_legal_form(text: str) -> bool:
+    return bool(COMPANY_MARKER.search(text))
 
 
 def _title_and_company(candidates: list[str]) -> tuple[str | None, str | None]:
-    """Each named only by its own words: a title word, or an employer's legal form. Never one by the other, since the
-    line beside a title is as often a city or `Remote` as the employer. A text with both names neither, and two of a
-    kind name nothing."""
-    roles = [_role(text) for text in candidates]
-    titles = [text for text, role in zip(candidates, roles, strict=True) if role == "title"]
-    companies = [text for text, role in zip(candidates, roles, strict=True) if role == "company"]
-    return (titles[0] if len(titles) == 1 else None, companies[0] if len(companies) == 1 else None)
+    return pick_two(candidates, _has_title_word, _has_legal_form)
+
+
+def pick_two(
+    candidates: list[str], is_first: Callable[[str], bool], is_second: Callable[[str], bool]
+) -> tuple[str | None, str | None]:
+    """Two roles, as a simple ATS fills them: each named by its own words first; then, with only one of them named,
+    the other is the best of the texts left, by elimination. A place is the last choice for that, being as often the
+    entry's city as its employer or school. With neither named, both stay empty."""
+    first = best(candidates, [(is_first, 2), (is_second, -1)], is_first)
+    second = best([text for text in candidates if text != first], [(is_second, 2), (is_first, -1)], is_second)
+    left = [text for text in candidates if text not in (first, second)]
+    if first and not second:
+        second = best(left, [(is_first, -2), (looks_like_place, -2)], _any)
+    elif second and not first:
+        first = best(left, [(is_second, -2), (looks_like_place, -2)], _any)
+    return first, second
+
+
+def _any(_text: str) -> bool:
+    return True

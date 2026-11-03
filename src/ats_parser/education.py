@@ -1,7 +1,5 @@
 """Education entries, read the way jobs are: a date range or a lone year makes one, with the lines beside or above it.
-Each part is named by its words alone, and only when they say which it is: a line that names neither is never used."""
-
-from typing import Literal
+The institution and the qualification are picked as a job's title and employer are (`pick_two`)."""
 
 from ats_parser.constants import (
     DATE_RANGE,
@@ -12,12 +10,13 @@ from ats_parser.constants import (
     MAX_LINE_CHARS,
     QUALIFICATION,
 )
-from ats_parser.experience import entry_candidates, is_prose, starts_with_dates, years_are_clear
+from ats_parser.experience import entry_candidates, is_prose, pick_two, starts_with_dates, years_are_clear
+from ats_parser.extraction import Line
 from ats_parser.schemas import Education
 
 
-def extract_education(section_lines: list[str]) -> list[Education]:
-    lines = [line[:MAX_LINE_CHARS] for line in section_lines]
+def extract_education(section_lines: list[Line]) -> list[Education]:
+    lines = [line.text[:MAX_LINE_CHARS] for line in section_lines]
     entries: list[Education] = []
     dates_first, section_start = False, True
     for index, line in enumerate(lines):
@@ -50,24 +49,13 @@ def _dates(line: str) -> tuple[str | None, str, str] | None:
     return None, years[0]["year"], line[: years[0].start()] + " " + line[years[0].end() :]
 
 
-_Role = Literal["institution", "qualification", "both", "neither"]
+def _has_institution_word(text: str) -> bool:
+    return bool(INSTITUTION.search(text))
 
 
-def _role(text: str) -> _Role:
-    institution = bool(INSTITUTION.search(text))
-    qualification = bool(QUALIFICATION.search(text) or EXAM.fullmatch(text.strip()))
-    if institution and qualification:
-        return "both"
-    return "institution" if institution else "qualification" if qualification else "neither"
+def _has_qualification_word(text: str) -> bool:
+    return bool(QUALIFICATION.search(text) or EXAM.fullmatch(text.strip()))
 
 
 def _institution_and_qualification(candidates: list[str]) -> tuple[str | None, str | None]:
-    """Each named only by its own words; unlike a job's, one never names the other, as the line beside a university is
-    as often its city as the degree. A text with both kinds of word names neither, and two of a kind name nothing."""
-    roles = [_role(text) for text in candidates]
-    institutions = [text for text, role in zip(candidates, roles, strict=True) if role == "institution"]
-    qualifications = [text for text, role in zip(candidates, roles, strict=True) if role == "qualification"]
-    return (
-        institutions[0] if len(institutions) == 1 else None,
-        qualifications[0] if len(qualifications) == 1 else None,
-    )
+    return pick_two(candidates, _has_institution_word, _has_qualification_word)

@@ -7,10 +7,10 @@ from datetime import date
 from ats_parser.constants import MIN_READABLE_CHARS_PER_PAGE, UNMAPPED_CHARACTER
 from ats_parser.education import extract_education
 from ats_parser.experience import extract_experience, total_months
-from ats_parser.extraction import ExtractedPage, ExtractedText, Rejection, extract_text
-from ats_parser.fields import extract_contact
+from ats_parser.extraction import ExtractedPage, ExtractedText, Line, Rejection, extract_text
+from ats_parser.fields import extract_contact, name_line
 from ats_parser.schemas import Contact, Parsed, ParseResult, Rejected, Section, SectionKind, Visibility, WarningCode
-from ats_parser.sections import find_sections
+from ats_parser.sections import FoundSection, split_sections
 
 
 def parse_pdf(pdf: bytes) -> Parsed | Rejected:
@@ -69,18 +69,24 @@ def _readable_chars(page: ExtractedPage) -> int:
     return sum(not char.isspace() for char in UNMAPPED_CHARACTER.sub("", page.text))
 
 
-def _section_lines(sections: list[Section], kind: SectionKind) -> list[str]:
-    return "\n\n".join(section.text for section in sections if section.kind == kind).split("\n")
+# Stands between sections of a kind, where the stages take a new section to start: lines from the PDF are never blank.
+_SECTION_BREAK = Line(text="", bold=False, size=0.0)
+
+
+def _section_lines(found: list[FoundSection], kind: SectionKind) -> list[Line]:
+    of_kind = [section.lines for section in found if section.section.kind == kind]
+    return [line for index, lines in enumerate(of_kind) for line in ([_SECTION_BREAK] if index else []) + lines]
 
 
 def _to_result(extracted: ExtractedText) -> ParseResult:
     visibility = classify_visibility(extracted.pages)
     text = extracted.text
     lines = extracted.lines
-    sections = find_sections(lines)
+    found = split_sections(lines, name_line(lines))
+    sections = [section.section for section in found]
     contact = extract_contact(lines)
     today = date.today()
-    experience = extract_experience(_section_lines(sections, "experience"), today)
+    experience = extract_experience(_section_lines(found, "experience"), today)
     return ParseResult(
         visibility=visibility,
         page_count=len(extracted.pages),
@@ -90,6 +96,6 @@ def _to_result(extracted: ExtractedText) -> ParseResult:
         sections=sections,
         experience=experience,
         experience_months=total_months(experience, today),
-        education=extract_education(_section_lines(sections, "education")),
+        education=extract_education(_section_lines(found, "education")),
         warnings=find_warnings(extracted.pages, visibility, contact, sections),
     )

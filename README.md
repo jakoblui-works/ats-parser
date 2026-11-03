@@ -15,8 +15,8 @@ The JSON is `{"outcome": "parsed", "result": ...}` or `{"outcome": "rejected", "
 
 The JSON's shape is in `schema/parse_outcome.schema.json`, generated from the models and published with each release. ats-web generates its types from it.
 
-## Design: a simple ATS, checked by the visitor
-The parser extracts the way a simple ATS does, mistakes included, and ats-web shows what came out and asks the visitor to check it against their CV: only they know what it says. It uses common, simple heuristics rather than the strongest possible, and skips noise a real ATS ignores, such as page numbers. A wrong value is shown as extracted, not hidden, and the verdict and warnings state facts rather than judging the CV. Reading order is the simple one, with no column detection. Some fields still follow older, stricter rules until they're replaced: job titles, employers, institutions and qualifications are recognised only by their own words, never by position.
+## Design: what a recruiter sees in a basic ATS
+The parser shows what a recruiter might see when a CV arrives in a basic applicant tracking system, so a visitor can tell whether their CV could be invisible. Real ATS methods are proprietary, so it uses a basic parser's plain, well-known methods instead: text pieces per font size, patterns for contact details and dates, heading lists and bold all-caps headings, simple feature scoring, and an entry's lines on both sides of its dates. It's weaker than commercial systems because it's simple, so a CV that reads well here probably reads well anywhere. There are no rules that hide information on purpose and no patches for unusual layouts; a wrong value is shown as extracted, for the visitor to check against their CV. Reading order is the simple one, with no column detection.
 
 ## Development
 The parser must also support Pyodide's Python (3.14 for Pyodide 314.x), which CI tests alongside 3.13.

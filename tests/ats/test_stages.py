@@ -12,6 +12,7 @@ from ats_parser.schemas import Rejected
 from ats_parser.sections import find_sections
 from tests.ats import samples
 from tests.ats.conftest import deadline
+from tests.ats.lines import plain
 
 FRAGMENTS = [
     "@",
@@ -37,16 +38,16 @@ lines_strategy = st.lists(
 @settings(max_examples=200, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 @given(lines=lines_strategy)
 def test_any_text_goes_through_the_stages_without_raising(lines: list[str]) -> None:
-    find_sections(lines)
-    extract_contact(lines)
+    find_sections(plain(lines))
+    extract_contact(plain(lines))
 
 
 @pytest.mark.parametrize("unit", ["9 ", "a@", "http://", "-", "(", "Education ", "0" * 7 + "."])
 def test_hostile_long_lines_are_handled_within_a_deadline(unit: str) -> None:
     lines = [unit * (MAX_TEXT_CHARS // len(unit))] * 3
     with deadline(10):
-        find_sections(lines)
-        extract_contact(lines)
+        find_sections(plain(lines))
+        extract_contact(plain(lines))
 
 
 def _break_extract_contact(monkeypatch: pytest.MonkeyPatch, error: BaseException) -> None:

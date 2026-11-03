@@ -13,6 +13,7 @@ from ats_parser.schemas import Parsed, ParseResult
 from ats_parser.sections import find_sections
 from tests.ats import samples
 from tests.ats.conftest import Parse
+from tests.ats.lines import plain
 
 CV = samples.CV
 
@@ -40,7 +41,7 @@ async def test_the_clean_sample_gives_the_right_answers_and_no_warnings(parse: P
     assert result.contact.email == CV.email
     assert result.contact.phone == CV.phone
     assert result.contact.links == list(CV.links)
-    assert result.contact.location is None
+    assert result.contact.location == CV.location
     assert [(section.kind, section.heading) for section in result.sections] == samples.expected_sections()
     assert result.warnings == []
     assert [dataclasses.asdict(entry) for entry in result.experience] == samples.expected_experience()
@@ -51,11 +52,10 @@ async def test_the_clean_sample_gives_the_right_answers_and_no_warnings(parse: P
     assert all(skill in skills_section.text for skill in CV.skills)
 
 
-def test_location_stays_null_and_the_dropped_warnings_are_never_given() -> None:
+def test_the_dropped_warnings_are_never_given() -> None:
     for pdf in (samples.clean_pdf(), samples.two_column_pdf(), samples.scanned_pdf()):
         result = _result(pdf)
 
-        assert result.contact.location is None
         assert "scrambled_order" not in result.warnings
         assert "unparsed_dates" not in result.warnings
 
@@ -73,13 +73,13 @@ def test_location_stays_null_and_the_dropped_warnings_are_never_given() -> None:
     ],
 )
 def test_a_known_heading_starts_a_section_whatever_its_form(heading: str, kind: str) -> None:
-    sections = find_sections(["before", heading, "body line"])
+    sections = find_sections(plain(["before", heading, "body line"]))
 
     assert [(section.kind, section.text) for section in sections] == [(kind, "body line")]
 
 
 def test_a_line_ending_in_a_full_stop_is_not_a_heading() -> None:
-    assert find_sections(["Education.", "body line"]) == []
+    assert find_sections(plain(["Education.", "body line"])) == []
 
 
 def test_a_cv_without_headings_gets_missing_sections() -> None:
@@ -93,12 +93,12 @@ def test_a_cv_without_headings_gets_missing_sections() -> None:
 
 @pytest.mark.parametrize("phone", ["07700 900123", "415-555-2671", "+33 1 23 45 67 89", "+44 (0)20 7946 0958"])
 def test_a_phone_in_a_usual_form_is_found(phone: str) -> None:
-    assert extract_contact(["Phone: " + phone]).phone == phone
+    assert extract_contact(plain(["Phone: " + phone])).phone == phone
 
 
 @pytest.mark.parametrize("line", ["Jan 2019 - Mar 2021", "2019 - 2021", "ISBN 0306406152", "Server 192.168.100.254"])
 def test_a_date_range_an_isbn_and_an_ip_address_are_not_phones(line: str) -> None:
-    assert extract_contact([line]).phone is None
+    assert extract_contact(plain([line])).phone is None
 
 
 def test_a_cv_with_only_lookalike_numbers_gets_missing_contact() -> None:
@@ -108,7 +108,7 @@ def test_a_cv_with_only_lookalike_numbers_gets_missing_contact() -> None:
 
 
 def test_an_email_and_links_are_found_and_an_email_is_not_a_link() -> None:
-    contact = extract_contact([CV.email, *CV.links])
+    contact = extract_contact(plain([CV.email, *CV.links]))
 
     assert contact.email == CV.email
     assert contact.links == list(CV.links)

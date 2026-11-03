@@ -2,18 +2,19 @@
 
 import logging
 import re
+from collections import Counter
 from dataclasses import dataclass
 from io import BytesIO
 from itertools import islice
 
 from pdfminer.converter import PDFPageAggregator
-from pdfminer.layout import LAParams, LTContainer, LTImage, LTItem, LTPage, LTTextLine
+from pdfminer.layout import LAParams, LTAnno, LTChar, LTContainer, LTImage, LTItem, LTPage, LTTextLine
 from pdfminer.pdfdocument import PDFDocument, PDFEncryptionError
 from pdfminer.pdfinterp import PDFPageInterpreter, PDFResourceManager
 from pdfminer.pdfpage import PDFPage
 from pdfminer.pdfparser import PDFParser
 
-from ats_parser.constants import MAX_PAGES, MAX_TEXT_CHARS, ROW_TOLERANCE_POINTS
+from ats_parser.constants import MAX_PAGES, MAX_TEXT_CHARS, ROW_TOLERANCE_POINTS, SIZE_CHANGE
 from ats_parser.schemas import RejectionReason
 
 # pdfminer's logs quote the file, CV text included, so none of them go anywhere, whatever the root level is.
@@ -30,6 +31,10 @@ _LOOKALIKES = str.maketrans({"\u00a0": " ", "\u2007": " ", "\u202f": " ", "\u201
 _SPACE_RUN = re.compile(r"\s+")
 # A run of hyphens with a look-alike or soft hyphen in it is one hyphen. Plain `--` stays: punycode domains have it.
 _HYPHEN_RUN = re.compile(r"[-‐‑­]{2,}")
+# A font's name says its weight, after any subset prefix (`ABCDEF+Inter-SemiBold`).
+_BOLD_FONT = re.compile(r"bold|black|heavy", re.IGNORECASE)
+# A PDF name is at most 127 bytes long.
+_MAX_FONT_NAME_CHARS = 127
 
 
 def _one_hyphen(run: re.Match[str]) -> str:
@@ -46,12 +51,26 @@ class Rejection(Exception):
 
 
 @dataclass(frozen=True)
+class Line:
+    """One row as the stages see it: its text, whether all of it is bold, and its size (points). A row drawn in pieces
+    of different sizes keeps them, each a `Line` of its own, as a simple parser gets text in items."""
+
+    text: str
+    bold: bool
+    size: float
+    pieces: tuple["Line", ...] = ()
+
+
+@dataclass(frozen=True)
 class TextLine:
-    """A run of text on one line, with where it sits on the page (points; `bottom` from the top of the page box)."""
+    """A run of text on one line, with where it sits on the page (points; `bottom` from the top of the page box), and
+    how it's drawn: bold when most of its characters are, and the size most of them have."""
 
     text: str
     x0: float
     bottom: float
+    bold: bool
+    size: float
 
 
 @dataclass(frozen=True)
@@ -62,12 +81,21 @@ class ExtractedPage:
     has_image: bool = False
 
     @property
-    def lines(self) -> list[str]:
-        return [" ".join(line.text for line in row) for row in self.rows]
+    def lines(self) -> list[Line]:
+        """A row is bold only if every part is, and as large as its largest part."""
+        return [
+            Line(
+                text=" ".join(line.text for line in row),
+                bold=all(line.bold for line in row),
+                size=max(line.size for line in row),
+                pieces=tuple(Line(line.text, line.bold, line.size) for line in row) if len(row) > 1 else (),
+            )
+            for row in self.rows
+        ]
 
     @property
     def text(self) -> str:
-        return "\n".join(self.lines)
+        return "\n".join(" ".join(line.text for line in row) for row in self.rows)
 
 
 @dataclass(frozen=True)
@@ -79,7 +107,7 @@ class ExtractedText:
         return "\n\n".join(page.text for page in self.pages)
 
     @property
-    def lines(self) -> list[str]:
+    def lines(self) -> list[Line]:
         return [line for page in self.pages for line in page.lines]
 
 
@@ -133,13 +161,53 @@ def _read(pdf: bytes) -> ExtractedText:
 
 def _lines(item: LTItem, page: LTPage) -> list[TextLine]:
     if isinstance(item, LTTextLine):
-        # A font's Unicode map can hold lone surrogates, which can't be encoded on the way out.
-        text = item.get_text().encode("utf-8", "replace").decode("utf-8")
-        text = _SPACE_RUN.sub(" ", _HYPHEN_RUN.sub(_one_hyphen, text).translate(_LOOKALIKES)).strip()
-        return [TextLine(text=text, x0=item.x0, bottom=page.y1 - item.y0)] if text else []
+        pieces = []
+        for run in _size_runs([part for part in item if isinstance(part, (LTChar, LTAnno))]):
+            # A font's Unicode map can hold lone surrogates, which can't be encoded on the way out.
+            text = "".join(part.get_text() for part in run).encode("utf-8", "replace").decode("utf-8")
+            text = _SPACE_RUN.sub(" ", _HYPHEN_RUN.sub(_one_hyphen, text).translate(_LOOKALIKES)).strip()
+            if text:
+                chars = [part for part in run if isinstance(part, LTChar)]
+                bold, size = _style(chars)
+                x0 = chars[0].x0 if chars else item.x0
+                pieces.append(TextLine(text=text, x0=x0, bottom=page.y1 - item.y0, bold=bold, size=size))
+        return pieces
     if isinstance(item, LTContainer):
         return [line for child in item for line in _lines(child, page)]
     return []
+
+
+def _size_runs(parts: list[LTChar | LTAnno]) -> list[list[LTChar | LTAnno]]:
+    """A line's characters, cut where the size changes clearly after a space, so a large name and a small place
+    beside it are separate pieces. Never inside a word, so small capitals stay one piece."""
+    runs: list[list[LTChar | LTAnno]] = [[]]
+    size = 0.0
+    for part in parts:
+        if isinstance(part, LTChar) and part.get_text().strip():
+            if size and runs[-1] and not runs[-1][-1].get_text().strip() and _changes(size, part.size):
+                runs.append([])
+            if not runs[-1] or not any(isinstance(item, LTChar) for item in runs[-1]):
+                size = part.size
+        runs[-1].append(part)
+    return runs
+
+
+def _changes(size: float, other: float) -> bool:
+    return size > 0 and other > 0 and max(size, other) >= min(size, other) * SIZE_CHANGE
+
+
+def _style(chars: list[LTChar]) -> tuple[bool, float]:
+    """Bold when most characters' fonts are, and the size most characters have."""
+    if not chars:
+        return False, 0.0
+    bold = sum(_is_bold_font(char.fontname) for char in chars) * 2 > len(chars)
+    return bold, Counter(char.size for char in chars).most_common(1)[0][0]
+
+
+def _is_bold_font(name: object) -> bool:
+    """A broken file's font name can be any object, of any length: only a name can be bold, read as far as a PDF name
+    goes, so a long one costs no more than a short one."""
+    return isinstance(name, str) and _BOLD_FONT.search(name[:_MAX_FONT_NAME_CHARS]) is not None
 
 
 def _has_image(item: LTItem) -> bool:

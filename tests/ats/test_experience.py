@@ -14,12 +14,13 @@ from ats_parser.schemas import Experience, Parsed
 from ats_parser.sections import heading_kind
 from tests.ats import samples
 from tests.ats.conftest import deadline
+from tests.ats.lines import plain
 
 TODAY = date(2026, 6, 15)
 
 
 def _one(*lines: str, today: date = TODAY) -> Experience:
-    entries = extract_experience(list(lines), today)
+    entries = extract_experience(plain(list(lines)), today)
     assert len(entries) == 1, entries
     return entries[0]
 
@@ -75,7 +76,7 @@ def test_the_total_merges_overlaps_and_skips_gaps() -> None:
         "Mar 2020 - Apr 2020",  # inside the first
         "Jan 2023 - Feb 2023",  # after a gap; 2 more
     ]
-    entries = extract_experience(lines, TODAY)
+    entries = extract_experience(plain(lines), TODAY)
 
     assert [entry.months for entry in entries] == [12, 10, 2, 2]
     assert total_months(entries, TODAY) == 15 + 2
@@ -84,7 +85,7 @@ def test_the_total_merges_overlaps_and_skips_gaps() -> None:
 def test_the_total_does_not_depend_on_the_order_of_the_jobs() -> None:
     lines = ["Jan 2023 - Feb 2023", "Jun 2020 - Mar 2021", "Jan 2020 - Dec 2020"]
 
-    assert total_months(extract_experience(lines, TODAY), TODAY) == 15 + 2
+    assert total_months(extract_experience(plain(lines), TODAY), TODAY) == 15 + 2
 
 
 @given(
@@ -95,7 +96,7 @@ def test_the_total_does_not_depend_on_the_order_of_the_jobs() -> None:
     )
 )
 def test_the_total_is_between_the_longest_job_and_the_sum_of_all(spans: list[str]) -> None:
-    entries = extract_experience(spans, TODAY)
+    entries = extract_experience(plain(spans), TODAY)
     months = [entry.months or 0 for entry in entries]
     total = total_months(entries, TODAY)
 
@@ -105,7 +106,7 @@ def test_the_total_is_between_the_longest_job_and_the_sum_of_all(spans: list[str
 
 def test_nothing_found_gives_no_entries_and_a_null_total() -> None:
     for lines in ([], [""], ["Worked at a company for a while", "Did many things well."]):
-        assert extract_experience(lines, TODAY) == []
+        assert extract_experience(plain(lines), TODAY) == []
     assert total_months([], TODAY) is None
 
 
@@ -120,23 +121,23 @@ def test_a_sentence_or_bullet_mentioning_a_year_is_not_a_job() -> None:
         "Revenue grew 40% between 2018 and 2020 under my lead.",
     ]
 
-    assert extract_experience(lines, TODAY) == []
+    assert extract_experience(plain(lines), TODAY) == []
 
 
 @pytest.mark.parametrize("line", ["Mar 2021 - Jan 2020", "13/2020 - 2021", "00/2020 - 04/2021", "2022 - 2019"])
 def test_an_end_before_the_start_or_an_unreadable_date_gives_no_entry(line: str) -> None:
-    assert extract_experience([line], TODAY) == []
+    assert extract_experience(plain([line]), TODAY) == []
 
 
 def test_a_range_in_a_bullet_or_a_sentence_is_not_a_job_and_adds_nothing_to_the_total() -> None:
     job = "Jan 2020 - Dec 2020"
-    base = extract_experience([job], TODAY)
+    base = extract_experience(plain([job]), TODAY)
     for prose in (
         "\u2022 Rebuilt billing, Jan 2020 - Mar 2020",
         "\u2022 Owned the 2015-2016 budget of 2m",
         "Grew sales from 2015 to 2019 across the region.",
     ):
-        entries = extract_experience(["Analyst", job, prose], TODAY)
+        entries = extract_experience(plain(["Analyst", job, prose]), TODAY)
 
         assert len(entries) == 1, prose
         assert total_months(entries, TODAY) == total_months(base, TODAY) == 12
@@ -152,13 +153,15 @@ def test_a_range_ending_in_the_future_counts_only_to_today() -> None:
         assert _one(line).months == to_today
     assert to_today == 6
     assert _one("2026 - 2027").months == to_today  # Year-only too: January to this month.
-    entries = extract_experience(["Jan 2026 - Dec 2027"], TODAY)
+    entries = extract_experience(plain(["Jan 2026 - Dec 2027"]), TODAY)
     assert total_months(entries, TODAY) == to_today
 
 
-def test_a_range_wholly_in_the_future_gives_no_entry() -> None:
+def test_a_range_wholly_in_the_future_is_listed_and_counts_no_months() -> None:
     for line in ("Jul 2026 - Dec 2027", "01/2027 - 06/2028", "2027 - 2028", "Jan 2030 - Present"):
-        assert extract_experience([line], TODAY) == [], line
+        entries = extract_experience(plain([line]), TODAY)
+        assert [entry.months for entry in entries] == [0], line
+        assert total_months(entries, TODAY) == 0, line
 
 
 # --- Date formats ---
@@ -228,7 +231,7 @@ def test_two_digit_years_that_are_not_dates_do_not_make_a_job() -> None:
         "Grade 9/10 - 11/12",
         "13/25 - Present",
     ):
-        assert extract_experience([line], TODAY) == [], line
+        assert extract_experience(plain([line]), TODAY) == [], line
 
 
 def test_a_year_range_without_spaces_is_one_and_lone_or_malformed_dates_are_not() -> None:
@@ -240,7 +243,7 @@ def test_a_year_range_without_spaces_is_one_and_lone_or_malformed_dates_are_not(
         "Jan 20",
         "Promoted to Lead in Mar. 2026, after 6 months.",
     ):
-        assert extract_experience([line], TODAY) == [], line
+        assert extract_experience(plain([line]), TODAY) == [], line
 
 
 def test_a_cv_layout_with_a_company_line_a_promotion_sentence_and_two_employers() -> None:
@@ -255,7 +258,7 @@ def test_a_cv_layout_with_a_company_line_a_promotion_sentence_and_two_employers(
         "Junior Designer Jul 2022 \u2013 Dec 2022",
     ]
     today = date(2026, 12, 1)
-    entries = extract_experience(lines, today)
+    entries = extract_experience(plain(lines), today)
 
     assert [(e.title, e.months) for e in entries] == [
         ("Lead Developer", 6),
@@ -276,7 +279,7 @@ def test_a_date_range_in_the_new_forms_is_not_a_phone_number() -> None:
         "03/25 - 08/26",
         "2012-2016",
     ):
-        assert extract_contact([line]).phone is None, line
+        assert extract_contact(plain([line])).phone is None, line
 
 
 # --- Titles ---
@@ -311,8 +314,10 @@ def test_without_a_usable_line_above_the_title_is_null_and_the_entry_stays() -> 
 
 
 def test_the_previous_jobs_bullet_or_dates_are_not_taken_as_a_title() -> None:
-    after_bullet = extract_experience(["Jan 2018 - Dec 2019", "• Cut reporting costs", "Jan 2020 - Mar 2021"], TODAY)
-    after_dates = extract_experience(["Jan 2018 - Dec 2019", "Jan 2020 - Mar 2021"], TODAY)
+    after_bullet = extract_experience(
+        plain(["Jan 2018 - Dec 2019", "• Cut reporting costs", "Jan 2020 - Mar 2021"]), TODAY
+    )
+    after_dates = extract_experience(plain(["Jan 2018 - Dec 2019", "Jan 2020 - Mar 2021"]), TODAY)
 
     assert after_bullet[1].title is None
     assert after_dates[1].title is None
@@ -357,7 +362,7 @@ FRAGMENTS = st.sampled_from(["Jan 2020", "2019", "Present", "13/2020", " - ", "t
 @settings(max_examples=200)
 @given(lines=st.lists(st.one_of(st.text(max_size=400), st.lists(FRAGMENTS, max_size=8).map("".join)), max_size=30))
 def test_arbitrary_text_never_raises(lines: list[str]) -> None:
-    entries = extract_experience(lines, TODAY)
+    entries = extract_experience(plain(lines), TODAY)
     total = total_months(entries, TODAY)
 
     assert (total is None) == (not entries)
@@ -373,7 +378,7 @@ def test_hostile_long_strings_finish_in_time_and_stay_bounded() -> None:
     ]
 
     with deadline(20):
-        entries = extract_experience(lines, TODAY)
+        entries = extract_experience(plain(lines), TODAY)
         total_months(entries, TODAY)
 
     assert len(entries) == MAX_EXPERIENCE_ENTRIES  # More valid jobs than the cap were given.
