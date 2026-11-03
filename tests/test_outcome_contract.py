@@ -6,6 +6,7 @@ must give a string that validates against it.
 """
 
 import json
+import traceback
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
@@ -64,13 +65,23 @@ def _validators() -> tuple[Draft202012Validator, Draft202012Validator]:
 
 def _outcome_of(data: bytes) -> dict[str, Any]:
     """Run the entry point and check its output against the committed schema; return the parsed JSON."""
-    # pytest.fail rather than `assert`: pytest would print the values in the assertion, and they carry the CV's text.
-    output = parse_pdf_json(data)
+    # pytest.fail(..., pytrace=False) rather than `assert` or letting an error through, with messages built only from
+    # the schema, names of types and places in the code: an `assert` prints the values, a traceback prints the frames'
+    # arguments, and an exception's, JSON's or jsonschema's message can quote them. Those values carry the CV's text.
+    try:
+        output = parse_pdf_json(data)
+    except Exception as error:
+        # `from None`: pytest would print the error it was raised from, and that error's message.
+        message = f"parse_pdf_json raised {type(error).__name__} {_raised_at(error)}"
+        raise pytest.fail.Exception(message, pytrace=False) from None
     if not isinstance(output, str):
         pytest.fail(f"parse_pdf_json returned {type(output).__name__}, not str", pytrace=False)
-    value = json.loads(output)
+    try:
+        value = json.loads(output)
+    except ValueError:
+        raise pytest.fail.Exception("parse_pdf_json returned text that isn't JSON", pytrace=False) from None
     if not isinstance(value, dict):
-        pytest.fail(f"parse_pdf_json returned JSON {type(value).__name__}, not an object", pytrace=False)
+        pytest.fail(f"parse_pdf_json returned JSON {_json_type(value)}, not an object", pytrace=False)
     as_committed, closed = _validators()
     if errors := list(as_committed.iter_errors(value)):
         pytest.fail(f"output doesn't match the committed schema: {_describe(errors)}", pytrace=False)
@@ -79,13 +90,74 @@ def _outcome_of(data: bytes) -> dict[str, Any]:
     return cast(dict[str, Any], value)
 
 
+def _raised_at(error: BaseException) -> str:
+    """Where an exception was raised, as file, line and function: places in the code, never values."""
+    frames = traceback.extract_tb(error.__traceback__)
+    if not frames:
+        return "(no traceback)"
+    frame = frames[-1]
+    path = Path(frame.filename)
+    shown = path.relative_to(ROOT) if path.is_relative_to(ROOT) else path
+    return f"at {shown}:{frame.lineno} in {frame.name}"
+
+
 def _describe(errors: list[ValidationError]) -> str:
-    """The failing leaves, short and without the instance (a parsed result carries the CV's text).
+    """The failing leaves, each as where it broke, the validator, and what the schema expected; never a value.
+
+    jsonschema's own messages quote the rejected value (a parsed result carries the CV's text), so each line is built
+    from the schema side only: the path, the validator and its schema value, plus at most the name of the actual
+    value's JSON type. An unexpected key isn't named either, since a stray key could come from the CV.
 
     Under the outcome union every branch reports a failure. A branch that rejected the output's `outcome` value is one
     the output didn't mean, so its leaves are dropped when another branch is left: what remains names the cause.
     """
-    return "; ".join(f"at {leaf.json_path}: {leaf.message[:120]}" for leaf in _leaves(errors)[:3])
+    return "; ".join(f"at {leaf.json_path}: {_expectation(leaf)}" for leaf in _leaves(errors)[:3])
+
+
+def _expectation(leaf: ValidationError) -> str:
+    expected = leaf.validator_value
+    match leaf.validator:
+        case "type":
+            return f"type: expected {_names(expected)}, got {_json_type(leaf.instance)}"
+        case "const":
+            return f"const: expected {json.dumps(expected)}"
+        case "enum":
+            return f"enum: expected one of {_names(expected)}"
+        case "required":
+            present = leaf.instance if isinstance(leaf.instance, dict) else {}
+            missing = [key for key in cast(list[str], expected) if key not in present]
+            return f"required: missing {_names(missing)} (required: {_names(expected)})"
+        case "additionalProperties":
+            declared = sorted(leaf.schema.get("properties", {})) if isinstance(leaf.schema, dict) else []
+            return f"additionalProperties: an undeclared key (declared: {_names(declared)})"
+        case _:
+            return f"{leaf.validator}: expected {json.dumps(expected)[:120]}"
+
+
+def _names(expected: object) -> str:
+    """Schema values as JSON: a string, or a list of them."""
+    return json.dumps(expected, ensure_ascii=False)
+
+
+def _json_type(value: object) -> str:
+    """The name of a value's JSON type (a kind, never the value)."""
+    match value:
+        case None:
+            return "null"
+        case bool():
+            return "boolean"
+        case int():
+            return "integer"
+        case float():
+            return "number"
+        case str():
+            return "string"
+        case list():
+            return "array"
+        case dict():
+            return "object"
+        case _:
+            return type(value).__name__
 
 
 def _leaves(errors: list[ValidationError]) -> list[ValidationError]:
