@@ -1,6 +1,7 @@
 """Text extraction: the first stage of the parser, and the only one that touches the PDF."""
 
 import logging
+import re
 from dataclasses import dataclass
 from io import BytesIO
 from itertools import islice
@@ -22,7 +23,20 @@ logging.getLogger("pdfminer").setLevel(logging.CRITICAL + 1)
 # all_texts=True also groups text inside form objects into lines, or it would be missed below.
 _LAYOUT = LAParams(boxes_flow=None, all_texts=True)
 # Spaces and hyphens that look ordinary to a reader but match nothing: no-break, narrow and non-breaking ones.
-_LOOKALIKES = str.maketrans({"\u00a0": " ", "\u2007": " ", "\u202f": " ", "\u2010": "-", "\u2011": "-"})
+# Soft hyphens are invisible unless a word breaks on them, so they go.
+_LOOKALIKES = str.maketrans({"\u00a0": " ", "\u2007": " ", "\u202f": " ", "\u2010": "-", "\u2011": "-", "\u00ad": None})
+# Some fonts map one glyph to several characters: Word's PDFs from macOS give each space as a tab, a carriage return,
+# a space and a no-break space, and each hyphen as a hyphen, a soft hyphen and another hyphen.
+_SPACE_RUN = re.compile(r"\s+")
+# A run of hyphens with a look-alike or soft hyphen in it is one hyphen. Plain `--` stays: punycode domains have it.
+_HYPHEN_RUN = re.compile(r"[-‐‑­]{2,}")
+
+
+def _one_hyphen(run: re.Match[str]) -> str:
+    characters = set(run.group())
+    if characters == {"-"}:
+        return run.group()
+    return "" if characters == {"­"} else "-"
 
 
 class Rejection(Exception):
@@ -120,7 +134,8 @@ def _read(pdf: bytes) -> ExtractedText:
 def _lines(item: LTItem, page: LTPage) -> list[TextLine]:
     if isinstance(item, LTTextLine):
         # A font's Unicode map can hold lone surrogates, which can't be encoded on the way out.
-        text = item.get_text().encode("utf-8", "replace").decode("utf-8").translate(_LOOKALIKES).strip()
+        text = item.get_text().encode("utf-8", "replace").decode("utf-8")
+        text = _SPACE_RUN.sub(" ", _HYPHEN_RUN.sub(_one_hyphen, text).translate(_LOOKALIKES)).strip()
         return [TextLine(text=text, x0=item.x0, bottom=page.y1 - item.y0)] if text else []
     if isinstance(item, LTContainer):
         return [line for child in item for line in _lines(child, page)]

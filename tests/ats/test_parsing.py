@@ -1,8 +1,11 @@
 """What the parser finds in a CV: contact details, sections and the four warnings. Dropped fields stay empty."""
 
 import dataclasses
+import string
 
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from ats_parser.fields import extract_contact
 from ats_parser.parser import parse_pdf
@@ -165,3 +168,45 @@ def test_a_phone_written_with_no_break_spaces_is_found() -> None:
     assert nbsp in phone
 
     assert _result(samples.lookalike_pdf(["Alex Sampleton", "Phone: " + phone])).contact.phone == CV.phone
+
+
+def test_a_font_that_maps_each_space_and_hyphen_to_several_characters_reads_as_plain_text() -> None:
+    phone = "+44 7700-900-123"
+    heading = CV.headings["experience"]
+    pdf = samples.multi_char_glyphs_pdf(
+        [CV.name, phone, heading, "body line"], space_as=samples.WORD_MAC_SPACE, hyphen_as=samples.WORD_MAC_HYPHEN
+    )
+
+    result = _result(pdf)
+
+    assert result.contact.phone == phone
+    assert [section.kind for section in result.sections] == ["experience"]
+    assert result.text.splitlines()[:3] == [CV.name, phone, heading]
+
+
+_words = st.lists(
+    st.text(alphabet=string.ascii_letters + string.digits, min_size=1, max_size=8), min_size=1, max_size=6
+)
+# Soft hyphens are dropped, so a run needs one character that isn't one. A run of plain hyphens stays as it is.
+_space_runs = st.text(alphabet=" \t\r\u00a0\u2007\u202f\u00ad", min_size=1, max_size=5).filter(
+    lambda run: run.strip("\u00ad")
+)
+_hyphen_runs = st.text(alphabet="-\u2010\u2011\u00ad", min_size=1, max_size=5).filter(
+    lambda run: run.strip("\u00ad") and (len(run) == 1 or set(run) != {"-"})
+)
+
+
+@settings(max_examples=100, deadline=None)
+@given(words=_words, space_as=_space_runs, hyphen_as=_hyphen_runs)
+def test_runs_of_space_and_hyphen_lookalikes_come_out_as_one_plain_character(
+    words: list[str], space_as: str, hyphen_as: str
+) -> None:
+    pdf = samples.multi_char_glyphs_pdf([" ".join(words), "-".join(words)], space_as=space_as, hyphen_as=hyphen_as)
+
+    assert _result(pdf).text.splitlines() == [" ".join(words), "-".join(words)]
+
+
+def test_plain_double_hyphens_are_kept_as_written() -> None:
+    link = "https://xn--exmple-cua.example.com/alex--sampleton"
+
+    assert _result(samples.lookalike_pdf(["Alex Sampleton", link])).contact.links == [link]

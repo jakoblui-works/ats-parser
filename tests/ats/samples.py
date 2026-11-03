@@ -568,6 +568,31 @@ def layout_pdf(items: list[Item]) -> bytes:
 
 # Look-alikes of a space and a hyphen. PDF text uses them, and a pattern for the plain characters misses them.
 LOOKALIKES = {"\u00a0": 2, "\u2011": 1, "\u2010": 3}  # Character -> the code that stands for it in lookalike_pdf.
+# What Word's PDFs from macOS map each space glyph and each hyphen glyph to.
+WORD_MAC_SPACE = "\t\r \u00a0"
+WORD_MAC_HYPHEN = "-\u00ad\u2010"
+
+
+def multi_char_glyphs_pdf(lines: list[str], *, space_as: str, hyphen_as: str) -> bytes:
+    """Lines of text whose every space and hyphen glyph maps to several characters, as in some fonts' Unicode maps.
+
+    The glyphs are Helvetica's own `space` and `hyphen`, so they keep their widths; the font's /ToUnicode map says
+    they stand for `space_as` and `hyphen_as`. Everything else is plain ASCII."""
+    utf16 = {code: text.encode("utf-16-be").hex().upper() for code, text in ((1, space_as), (2, hyphen_as))}
+    cmap = (
+        "/CIDInit /ProcSet findresource begin 12 dict begin begincmap\n"
+        "/CMapName /Multi def 1 begincodespacerange <00> <FF> endcodespacerange\n"
+        f"2 beginbfchar <01> <{utf16[1]}> <02> <{utf16[2]}> endbfchar\n"
+        "endcmap CMapName currentdict /CMap defineresource pop end end"
+    ).encode()
+    font = b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica"
+    font += b" /Encoding << /Differences [1 /space /hyphen] >> /ToUnicode 6 0 R >>"
+    rows = []
+    for index, line in enumerate(lines):
+        coded = line.replace(" ", "\x01").replace("-", "\x02")
+        escaped = coded.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+        rows.append(f"BT /F1 12 Tf 50 {780 - 20 * index} Td ({escaped}) Tj ET\n")
+    return raw_pdf([*_one_page_objects("".join(rows).encode("latin-1"), font=font), _stream(cmap)])
 
 
 def lookalike_pdf(lines: list[str]) -> bytes:
