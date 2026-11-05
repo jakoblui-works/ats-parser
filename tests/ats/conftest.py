@@ -1,14 +1,9 @@
 import signal
-from collections.abc import Awaitable, Callable, Iterator
+from collections.abc import Iterator
 from contextlib import contextmanager
 from types import FrameType
 
 import pytest
-
-from ats_parser.parser import parse_pdf
-from ats_parser.schemas import Parsed, Rejected
-
-Parse = Callable[[bytes], Awaitable[Parsed | Rejected]]
 
 # Generous: this only exists so that a regression that hangs fails the test instead of blocking the suite.
 OUTER_DEADLINE_SECONDS = 120
@@ -38,13 +33,3 @@ def deadline(seconds: float, repeat: float = REPEAT_SECONDS) -> Iterator[None]:
 def outer_deadline() -> Iterator[None]:
     with deadline(OUTER_DEADLINE_SECONDS):
         yield
-
-
-async def _in_process(pdf: bytes) -> Parsed | Rejected:
-    return parse_pdf(pdf)
-
-
-@pytest.fixture
-def parse() -> Parse:
-    """The way a test parses a file; swap it to run the suite through another route."""
-    return _in_process

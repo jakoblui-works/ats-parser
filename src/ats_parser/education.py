@@ -1,5 +1,6 @@
-"""Education entries, read the way jobs are: a date range or a lone year makes one, with the lines beside or above it.
-The institution and the qualification are picked as a job's title and employer are (`pick_two`)."""
+"""Education entries, read as `entries` reads any entry: a date range or a lone year makes one, and any line with a
+date range, or that makes an entry, ends the lines read around another entry's dates. The institution and the
+qualification are picked as a job's title and employer are (`pick_two`)."""
 
 from ats_parser.constants import (
     DATE_RANGE,
@@ -7,34 +8,37 @@ from ats_parser.constants import (
     INSTITUTION,
     LONE_YEAR,
     MAX_EDUCATION_ENTRIES,
-    MAX_LINE_CHARS,
     QUALIFICATION,
 )
-from ats_parser.experience import entry_candidates, is_prose, pick_two, starts_with_dates, years_are_clear
+from ats_parser.entries import pick_two, read_entries, years_are_clear
 from ats_parser.extraction import Line
 from ats_parser.schemas import Education
 
 
 def extract_education(section_lines: list[Line]) -> list[Education]:
-    lines = [line.text[:MAX_LINE_CHARS] for line in section_lines]
-    entries: list[Education] = []
-    dates_first, section_start = False, True
-    for index, line in enumerate(lines):
-        if not line.strip():
-            section_start = True  # Sections of a kind are joined by a blank line, and each has its own layout.
-            continue
-        dates = None if is_prose(line) else _dates(line)
-        if not dates:
-            continue
-        start, end, rest = dates
-        beside = rest if any(char.isalpha() for char in rest) else None
-        if section_start:
-            dates_first, section_start = starts_with_dates(lines, index, beside), False
-        institution, qualification = _institution_and_qualification(
-            entry_candidates(lines, index, beside, above=not dates_first)
-        )
-        entries.append(Education(institution=institution, qualification=qualification, start=start, end=end))
-    return entries[:MAX_EDUCATION_ENTRIES]
+    lines = [line.capped for line in section_lines]
+    return read_entries(lines, _has_dates, _dates_beside, _education)[:MAX_EDUCATION_ENTRIES]
+
+
+def _has_dates(line: str) -> bool:
+    """A line that makes an entry, or a date range even where `_dates` can't read it. Two years with no range between
+    make no entry, so a line like that (a thesis title with years in it) doesn't cut off the entry above."""
+    return bool(DATE_RANGE.search(line)) or _dates(line) is not None
+
+
+def _dates_beside(line: str) -> tuple[tuple[str | None, str], str | None] | None:
+    """((start, end), the rest of the line if it has letters), or None if the line has no dates that can be read."""
+    dates = _dates(line)
+    if not dates:
+        return None
+    start, end, rest = dates
+    return (start, end), (rest if any(char.isalpha() for char in rest) else None)
+
+
+def _education(candidates: list[str], dates: tuple[str | None, str]) -> Education:
+    institution, qualification = pick_two(candidates, _has_institution_word, _has_qualification_word)
+    start, end = dates
+    return Education(institution=institution, qualification=qualification, start=start, end=end)
 
 
 def _dates(line: str) -> tuple[str | None, str, str] | None:
@@ -55,7 +59,3 @@ def _has_institution_word(text: str) -> bool:
 
 def _has_qualification_word(text: str) -> bool:
     return bool(QUALIFICATION.search(text) or EXAM.fullmatch(text.strip()))
-
-
-def _institution_and_qualification(candidates: list[str]) -> tuple[str | None, str | None]:
-    return pick_two(candidates, _has_institution_word, _has_qualification_word)

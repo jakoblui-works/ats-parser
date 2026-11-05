@@ -6,10 +6,10 @@ SectionKind = Literal["summary", "experience", "education", "skills", "other"]
 WarningCode = Literal[
     "no_text_layer",
     "little_text",
-    "scrambled_order",
+    "scrambled_order",  # Never produced; see CLAUDE.md.
     "missing_contact",
     "missing_sections",
-    "unparsed_dates",
+    "unparsed_dates",  # Never produced; see CLAUDE.md.
 ]
 RejectionReason = Literal["too_many_pages", "encrypted", "corrupt", "timed_out"]
 
@@ -60,7 +60,7 @@ class ParseResult:
     experience: list[Experience] = field(default_factory=list)
     experience_months: int | None = None
     education: list[Education] = field(default_factory=list)
-    skills: list[str] = field(default_factory=list)
+    skills: list[str] = field(default_factory=list)  # Never filled in; see CLAUDE.md.
     warnings: list[WarningCode] = field(default_factory=list)
 
 

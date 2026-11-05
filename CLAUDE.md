@@ -26,6 +26,8 @@ uv run python scripts/generate_schema.py   # after changing the models in schema
 
 `RejectionReason` includes `timed_out`, and it is in the published schema, but the parser never returns it: it is for the host, which applies its own timeout. Removing it is a contract change.
 
+The parser never produces the warnings `scrambled_order` and `unparsed_dates`, or `ParseResult.skills`: they are left from the first build, cut back on 2026-11-01, and the fields stay in the contract, empty. ats-web has copy for the two warnings (`parse-result.tsx`) and shows no `skills`; the field is only in its generated type, its test fixtures and the upload page's example result (`example-result.ts`). Removing them is a contract change: a new contract version and an ats-web pin bump.
+
 ## Design rule: what a recruiter sees in a basic ATS
 The parser shows what a recruiter might see when a CV arrives in a basic ATS, using a basic parser's plain, well-known methods; ats-web shows what came out and asks the visitor to check it. It's weaker than commercial ATSs because it's simple, so "passes here, probably passes everywhere".
 - Plain methods only: text pieces per font size, rows by baseline, patterns for contact details and dates, heading lists plus bold all-caps lines, feature scoring (`scoring.best`), an entry's lines on both sides of its dates. Skip noise a basic parser ignores (page numbers, `CV` labels).

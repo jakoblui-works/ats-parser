@@ -4,7 +4,7 @@ import dataclasses
 import string
 
 import pytest
-from hypothesis import given, settings
+from hypothesis import assume, given, settings
 from hypothesis import strategies as st
 
 from ats_parser.fields import extract_contact
@@ -12,7 +12,6 @@ from ats_parser.parser import parse_pdf
 from ats_parser.schemas import Parsed, ParseResult
 from ats_parser.sections import find_sections
 from tests.ats import samples
-from tests.ats.conftest import Parse
 from tests.ats.lines import plain
 
 CV = samples.CV
@@ -31,9 +30,8 @@ def _lines_pdf(lines: list[str]) -> bytes:
 # --- The clean sample ---
 
 
-@pytest.mark.asyncio
-async def test_the_clean_sample_gives_the_right_answers_and_no_warnings(parse: Parse) -> None:
-    outcome = await parse(samples.clean_pdf())
+def test_the_clean_sample_gives_the_right_answers_and_no_warnings() -> None:
+    outcome = parse_pdf(samples.clean_pdf())
     assert isinstance(outcome, Parsed)
     result = outcome.result
 
@@ -99,6 +97,27 @@ def test_a_phone_in_a_usual_form_is_found(phone: str) -> None:
 @pytest.mark.parametrize("line", ["Jan 2019 - Mar 2021", "2019 - 2021", "ISBN 0306406152", "Server 192.168.100.254"])
 def test_a_date_range_an_isbn_and_an_ip_address_are_not_phones(line: str) -> None:
     assert extract_contact(plain([line])).phone is None
+
+
+digit_runs = st.text(alphabet=string.digits, min_size=1, max_size=3)
+
+
+@given(
+    lead=st.text(alphabet=string.digits, min_size=3, max_size=4).map(lambda digits: "0" + digits),
+    before=st.one_of(st.just(""), digit_runs),
+    year=st.integers(1900, 2099).map(str),
+    after=st.one_of(st.just(""), digit_runs),
+)
+def test_a_year_inside_a_longer_run_of_digits_does_not_stop_a_number_being_a_phone(
+    lead: str, before: str, year: str, after: str
+) -> None:
+    # A year is four digits standing alone. Only then does a number without `+` read as dates, not a phone.
+    assume(before or after)
+    inside = f"{lead} {before}{year}{after}"
+    alone = " ".join(group for group in (lead, before, year, after) if group)
+
+    assert extract_contact(plain([inside])).phone == inside
+    assert extract_contact(plain([alone])).phone is None
 
 
 def test_a_cv_with_only_lookalike_numbers_gets_missing_contact() -> None:

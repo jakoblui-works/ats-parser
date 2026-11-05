@@ -6,6 +6,7 @@ from datetime import date
 
 from ats_parser.constants import MIN_READABLE_CHARS_PER_PAGE, UNMAPPED_CHARACTER
 from ats_parser.education import extract_education
+from ats_parser.entries import SECTION_BREAK
 from ats_parser.experience import extract_experience, total_months
 from ats_parser.extraction import ExtractedPage, ExtractedText, Line, Rejection, extract_text
 from ats_parser.fields import extract_contact, name_line
@@ -69,13 +70,9 @@ def _readable_chars(page: ExtractedPage) -> int:
     return sum(not char.isspace() for char in UNMAPPED_CHARACTER.sub("", page.text))
 
 
-# Stands between sections of a kind, where the stages take a new section to start: lines from the PDF are never blank.
-_SECTION_BREAK = Line(text="", bold=False, size=0.0)
-
-
 def _section_lines(found: list[FoundSection], kind: SectionKind) -> list[Line]:
     of_kind = [section.lines for section in found if section.section.kind == kind]
-    return [line for index, lines in enumerate(of_kind) for line in ([_SECTION_BREAK] if index else []) + lines]
+    return [line for index, lines in enumerate(of_kind) for line in ([SECTION_BREAK] if index else []) + lines]
 
 
 def _to_result(extracted: ExtractedText) -> ParseResult:

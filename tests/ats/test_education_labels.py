@@ -5,9 +5,12 @@ Recognised forms are only those the lists are sure to have. The "contains one" e
 which no reasonable list would hold.
 """
 
+from hypothesis import given
+from hypothesis import strategies as st
+
 from ats_parser.education import extract_education
 from ats_parser.schemas import Education
-from tests.ats.lines import plain
+from tests.ats.lines import SECTION_BREAKS, plain
 
 DATES = "2011 - 2015"
 INSTITUTION = "Københavns Universitet"
@@ -112,4 +115,103 @@ def test_sections_joined_by_a_blank_line_each_keep_their_own_layout() -> None:
         ("University of Exampleton", "MSc Computing", "Sep 2015", "Jun 2017"),
         ("Sample College", "BSc Statistics", "Sep 2011", "Jun 2015"),
         ("Example Gymnasium", "STX", "Aug 2008", "Jun 2011"),
+    ]
+
+
+@given(first_break=SECTION_BREAKS, second_break=SECTION_BREAKS)
+def test_sections_joined_by_a_blank_or_whitespace_only_line_keep_their_own_layout_both_ways_round(
+    first_break: str, second_break: str
+) -> None:
+    # The test above, the other way round as well, and with any whitespace on the line between.
+    lines = [
+        # Dates first, then institution and qualification.
+        "Sep 2005 - Jun 2008",
+        "Example Gymnasium",
+        "STX",
+        first_break,
+        # Institution and qualification, then dates, twice.
+        "Sample College",
+        "BSc Statistics",
+        "Sep 2008 - Jun 2011",
+        "University of Exampleton",
+        "MSc Computing",
+        "Sep 2011 - Jun 2013",
+        second_break,
+        # Dates first again.
+        "Sep 2013 - Jun 2016",
+        "Demo Institute",
+        "PhD Data Science",
+    ]
+
+    entries = extract_education(plain(lines))
+
+    assert [(e.institution, e.qualification, e.start) for e in entries] == [
+        ("Example Gymnasium", "STX", "Sep 2005"),
+        ("Sample College", "BSc Statistics", "Sep 2008"),
+        ("University of Exampleton", "MSc Computing", "Sep 2011"),
+        ("Demo Institute", "PhD Data Science", "Sep 2013"),
+    ]
+
+
+@given(gap=SECTION_BREAKS)
+def test_a_blank_or_whitespace_only_line_stops_the_lines_read_above_and_below_the_dates(gap: str) -> None:
+    # What's past a section's break belongs to another section, so it never names this one's entry.
+    for lines in (
+        ["University of Exampleton", "MSc Computing", gap, "Sep 2015 - Jun 2017"],
+        ["Sep 2015 - Jun 2017", gap, "University of Exampleton", "MSc Computing"],
+    ):
+        entries = extract_education(plain(lines))
+
+        assert [(e.institution, e.qualification, e.start) for e in entries] == [(None, None, "Sep 2015")]
+
+
+# --- A lone year is dates in education, so it bounds a neighbour's lines as a date range does ---
+
+# A year alone, as education reads one: bare, or with its month.
+lone_years = st.tuples(st.sampled_from(["{year}", "Jun {year}", "06/{year}"]), st.integers(1990, 2025)).map(
+    lambda form_and_year: form_and_year[0].format(year=form_and_year[1])
+)
+
+
+@given(lone_year=lone_years)
+def test_a_lone_year_line_ends_the_lines_read_below_the_entry_above_it(lone_year: str) -> None:
+    # Named above their dates: the qualification just above the lone year is that entry's, so the entry above,
+    # which names only its institution, gets no qualification from it.
+    lines = ["University of Exampleton", "Sep 2015 - Jun 2017", "MSc Computing", lone_year]
+
+    entries = extract_education(plain(lines))
+
+    assert [(e.institution, e.qualification, e.end) for e in entries] == [
+        ("University of Exampleton", None, "Jun 2017"),
+        (None, "MSc Computing", lone_year[-4:]),
+    ]
+
+
+@given(first=st.integers(1990, 2025), gap=st.integers(1, 10))
+def test_a_line_with_years_that_makes_no_entry_does_not_take_the_line_above_it(first: int, gap: int) -> None:
+    # Two years with no range between make no entry, so they end nothing: the qualification above them stays with
+    # the entry it belongs to, rather than being dropped.
+    lines = [
+        "University of Exampleton",
+        "Sep 2015 - Jun 2017",
+        "MSc Computing",
+        f"Thesis on the {first} and {first + gap} elections",
+    ]
+
+    entries = extract_education(plain(lines))
+
+    assert [(e.institution, e.qualification) for e in entries] == [("University of Exampleton", "MSc Computing")]
+
+
+@given(lone_year=lone_years)
+def test_a_lone_year_line_ends_the_lines_read_above_the_entry_below_it(lone_year: str) -> None:
+    # The institution beside the lone year is that entry's, so the entry below, which names only its qualification,
+    # gets no institution from that line.
+    lines = [f"Example Gymnasium {lone_year}", "BSc Statistics", "Sep 2018 - Jun 2021"]
+
+    entries = extract_education(plain(lines))
+
+    assert [(e.institution, e.qualification, e.end) for e in entries] == [
+        ("Example Gymnasium", None, lone_year[-4:]),
+        (None, "BSc Statistics", "Jun 2021"),
     ]

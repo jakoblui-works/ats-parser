@@ -18,3 +18,7 @@ htmlcov/
 .env
 .env.*
 !.env.example
+
+# Proofs: deleted at hand-over, never committed
+*.proof.*
+*_proof.py

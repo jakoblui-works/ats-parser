@@ -1,4 +1,5 @@
-"""The parser's limits and lists, all in one place. Nothing here comes from settings."""
+"""The parser's limits and the lists its stages share. A stage's private patterns stay with it. Nothing here comes from
+settings."""
 
 import re
 
@@ -148,7 +149,8 @@ LOCAL_PHONE = re.compile(
     r"\b(?:tlf|telefon|mobil|mobile|mob|phone)\b\.?(?: ?nr\.?)?:? ?(?P<number>[1-9]\d(?: ?\d{2}){3})(?![ .-]?\d)",
     re.IGNORECASE,
 )
-YEAR = re.compile(r"(?<!\d)(?:19|20)\d{2}(?!\d)")
+_FULL_YEAR = r"(?:19|20)\d{2}"
+YEAR = re.compile(rf"(?<!\d){_FULL_YEAR}(?!\d)")
 NOT_A_PHONE = re.compile(r"\bisbn\b", re.IGNORECASE)  # An ISBN-10 written without hyphens looks just like a phone.
 LINK = re.compile(
     r"(?<![@\w.-])(?:https?://|www\.|(?:[a-z]{2,3}\.)?(?:linkedin|github|gitlab|bitbucket)\.com/)[^\s|,;<>()\"']{1,200}",
@@ -156,13 +158,26 @@ LINK = re.compile(
 )
 
 # Experience. A date range is what makes a line a job, so a year in a sentence isn't one. Gaps are bounded and nothing
-# nests, so this stays linear. `experience.py` checks that two-digit years pair up.
-_MONTH_NAME = (  # English and Danish
-    r"jan(?:uary?)?|feb(?:ruary?)?|mar(?:ch|ts)?|apr(?:il)?|ma[yj]|jun[ei]?|jul[yi]?|aug(?:ust)?"
-    r"|sep(?:t(?:ember)?)?|o[ck]t(?:ober)?|nov(?:ember)?|dec(?:ember)?"
+# nests, so this stays linear. `entries.years_are_clear` checks that two-digit years pair up.
+_MONTH_SPELLINGS = (  # Each month's English and Danish spellings, January first.
+    r"jan(?:uary?)?",
+    r"feb(?:ruary?)?",
+    r"mar(?:ch|ts)?",
+    r"apr(?:il)?",
+    r"ma[yj]",
+    r"jun[ei]?",
+    r"jul[yi]?",
+    r"aug(?:ust)?",
+    r"sep(?:t(?:ember)?)?",
+    r"o[ck]t(?:ober)?",
+    r"nov(?:ember)?",
+    r"dec(?:ember)?",
 )
+# One pattern per month, so a month name the patterns below matched reads as its number (`experience.py`). Each
+# spelling must match on its own (no anchors or lookarounds), and no two months may share one.
+MONTHS = tuple(re.compile(spellings, re.IGNORECASE) for spellings in _MONTH_SPELLINGS)
+_MONTH_NAME = "|".join(_MONTH_SPELLINGS)
 _GAP = r"\s{1,3}"
-_FULL_YEAR = r"(?:19|20)\d{2}"
 _DATE = (
     # 15 Mar 2026, 15. marts 2026, Mar. 2026, Mar, 2026, Mar 15, 2026
     rf"(?:(?:\d{{1,2}}\.?{_GAP})?(?:{_MONTH_NAME})\.?(?:,?{_GAP}|{_GAP}\d{{1,2}},{_GAP}){_FULL_YEAR}"
@@ -189,12 +204,10 @@ DATE_PARTS = re.compile(
     rf"(\d{{4}})-(\d{{2}})|(?:\d{{1,2}}\.?\s+)?(?:({_MONTH_NAME})\W*(?:\d{{1,2}},\s+)?|(\d{{1,2}})[/.-])?(\d{{2,4}})",
     re.IGNORECASE,
 )
-MONTH_NUMBERS = {
-    name: number for number, name in enumerate("jan feb mar apr may jun jul aug sep oct nov dec".split(), 1)
-} | {"maj": 5, "okt": 10}
 # Separators left around a title once the dates are gone.
 TITLE_EDGES = " ()[]|,;:/-\u2012\u2013\u2014\u2015\u2212\u2022\u00b7"
-TITLE_LINES_ABOVE = 2  # Lines read above and below an entry's dates.
+# How many lines an entry reads on each side of its dates: titles above them, and the lines below.
+ENTRY_LINES_AROUND = 2
 # A line ending in a full stop is a sentence from this many words; shorter, it's a name (`Example Widgets Inc.`).
 MIN_SENTENCE_WORDS = 5
 # A line starting like this, or ending in a full stop, is a bullet or a sentence: neither a job nor a title.
@@ -223,7 +236,7 @@ INSTITUTION = re.compile(
     re.IGNORECASE,
 )
 # What a job's or a degree's lines are named by first, as a simple ATS's lists would; with one named, the other is
-# found by elimination (`experience.pick_two`). Position isn't used, since CVs put title and employer either way round.
+# found by elimination (`entries.pick_two`). Position isn't used, since CVs put title and employer either way round.
 # Titles: English as whole words; Danish ones also end a compound (`Projektleder`), but never start one (`Lederskab`).
 TITLE_WORD = re.compile(
     r"\b(?:developer|engineer|programmer|architect|manager|director|head\s+of|consultant|analyst|designer|scientist"
