@@ -158,7 +158,7 @@ LINK = re.compile(
 )
 
 # Experience. A date range is what makes a line a job, so a year in a sentence isn't one. Gaps are bounded and nothing
-# nests, so this stays linear. `experience.py` checks that two-digit years pair up.
+# nests, so this stays linear. `entries.years_are_clear` checks that two-digit years pair up.
 _MONTH_SPELLINGS = (  # Each month's English and Danish spellings, January first.
     r"jan(?:uary?)?",
     r"feb(?:ruary?)?",

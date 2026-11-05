@@ -12,9 +12,8 @@ from ats_parser.constants import (
     ONGOING,
     TITLE_EDGES,
     TITLE_WORD,
-    YEAR,
 )
-from ats_parser.entries import pick_two, read_entries
+from ats_parser.entries import pick_two, read_entries, years_are_clear
 from ats_parser.extraction import Line
 from ats_parser.schemas import Experience
 
@@ -64,12 +63,6 @@ def _span(start: str, end: str, today: date) -> tuple[int, int] | None:
     if first >= now:  # `now` is next month: a job that hasn't started yet counts no months, but it's still listed.
         return (first, first)
     return (first, min(last, now))  # Months that haven't happened don't count.
-
-
-def years_are_clear(start: str, end: str) -> bool:
-    """A two-digit year needs another one, or an ongoing end, beside it: `Mar 15 - Apr 2, 2026` has a day in it."""
-    full_years = [bool(YEAR.search(date)) for date in ((start,) if ONGOING.fullmatch(end) else (start, end))]
-    return all(full_years) or not any(full_years)
 
 
 def _month_number(written: str, *, after: bool = False) -> int | None:

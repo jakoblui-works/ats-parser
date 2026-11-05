@@ -9,8 +9,7 @@ from ats_parser.constants import (
     MAX_EDUCATION_ENTRIES,
     QUALIFICATION,
 )
-from ats_parser.entries import pick_two, read_entries
-from ats_parser.experience import years_are_clear
+from ats_parser.entries import pick_two, read_entries, years_are_clear
 from ats_parser.extraction import Line
 from ats_parser.schemas import Education
 

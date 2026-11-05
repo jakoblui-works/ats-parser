@@ -11,7 +11,9 @@ from ats_parser.constants import (
     ENTRY_SEPARATOR,
     MAX_ENTRY_CHARS,
     MIN_SENTENCE_WORDS,
+    ONGOING,
     TITLE_EDGES,
+    YEAR,
 )
 from ats_parser.extraction import Line
 from ats_parser.fields import looks_like_place
@@ -47,6 +49,12 @@ def read_entries[D, E](
             dates_first, section_start = starts_with_dates(lines, index, beside), False
         entries.append(entry(entry_candidates(lines, index, beside, above=not dates_first), dates))
     return entries
+
+
+def years_are_clear(start: str, end: str) -> bool:
+    """A two-digit year needs another one, or an ongoing end, beside it: `Mar 15 - Apr 2, 2026` has a day in it."""
+    full_years = [bool(YEAR.search(date)) for date in ((start,) if ONGOING.fullmatch(end) else (start, end))]
+    return all(full_years) or not any(full_years)
 
 
 def is_prose(line: str) -> bool:
