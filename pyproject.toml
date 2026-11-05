@@ -20,15 +20,12 @@ dev = [
     "pillow>=13.0.0",
     "pydantic>=2.14.1",
     "pytest>=9.2.0",
-    "pytest-asyncio>=1.4.1",
     "reportlab>=5.1.0",
     "ruff>=0.17.3",
     "types-jsonschema>=4.26.0.20261006",
 ]
 
 [tool.pytest.ini_options]
-asyncio_mode = "strict"
-asyncio_default_fixture_loop_scope = "function"
 addopts = "--import-mode=importlib"
 pythonpath = [".", "src"]
 testpaths = ["tests"]

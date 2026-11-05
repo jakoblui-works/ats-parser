@@ -12,7 +12,6 @@ from ats_parser.parser import parse_pdf
 from ats_parser.schemas import Parsed, ParseResult
 from ats_parser.sections import find_sections
 from tests.ats import samples
-from tests.ats.conftest import Parse
 from tests.ats.lines import plain
 
 CV = samples.CV
@@ -31,9 +30,8 @@ def _lines_pdf(lines: list[str]) -> bytes:
 # --- The clean sample ---
 
 
-@pytest.mark.asyncio
-async def test_the_clean_sample_gives_the_right_answers_and_no_warnings(parse: Parse) -> None:
-    outcome = await parse(samples.clean_pdf())
+def test_the_clean_sample_gives_the_right_answers_and_no_warnings() -> None:
+    outcome = parse_pdf(samples.clean_pdf())
     assert isinstance(outcome, Parsed)
     result = outcome.result
 

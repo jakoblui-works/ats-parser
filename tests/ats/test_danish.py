@@ -15,7 +15,7 @@ from ats_parser.parser import parse_pdf
 from ats_parser.schemas import Experience, Parsed
 from ats_parser.sections import find_sections, heading_kind
 from tests.ats import samples
-from tests.ats.conftest import Parse, deadline
+from tests.ats.conftest import deadline
 from tests.ats.lines import plain
 
 TODAY = date(2026, 6, 15)
@@ -69,10 +69,9 @@ def _phone(*lines: str) -> str | None:
 # --- 1. A whole Danish CV ---
 
 
-@pytest.mark.asyncio
-async def test_a_danish_cv_gives_its_answers_and_no_warnings(parse: Parse) -> None:
+def test_a_danish_cv_gives_its_answers_and_no_warnings() -> None:
     cv = samples.DANISH_CV
-    outcome = await parse(samples.clean_pdf(cv))
+    outcome = parse_pdf(samples.clean_pdf(cv))
     assert isinstance(outcome, Parsed)
     result = outcome.result
 
