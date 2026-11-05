@@ -100,7 +100,7 @@ def _name_and_line(lines: list[Line]) -> tuple[int, str] | None:
     rows = 0
     for index, line in enumerate(lines):
         text = line.capped
-        if heading_kind(text):
+        if heading_kind(line.text):
             break
         if not any(char.isalpha() for char in text) or not _tidy(text):
             continue
@@ -190,7 +190,7 @@ def _find_location(lines: list[Line], name: str | None) -> str | None:
     link, a phone or a heading. A line's parts come before it, so a tie goes to a part."""
     candidates: list[str] = []
     for row in lines:
-        if heading_kind(row.capped):
+        if heading_kind(row.text):
             break
         for line in (*(piece.capped for piece in row.pieces), row.capped):
             parts = ENTRY_SEPARATOR.split(line)

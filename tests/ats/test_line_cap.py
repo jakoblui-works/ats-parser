@@ -82,3 +82,16 @@ def test_a_heading_is_the_whole_row_so_a_tail_running_past_the_cap_makes_it_none
 
     assert [section.kind for section in find_sections(plain([within, "Body text"]))] == ["experience"]
     assert find_sections(plain([past, "Body text"])) == []
+
+
+def test_a_row_too_long_to_be_a_heading_does_not_stop_the_name_and_location_search() -> None:
+    # Above the name, a row that starts like a heading but runs past the cap is no heading, as it is for sections.
+    past = "Experience " + "-" * MAX_LINE_CHARS
+    rows = [past, "Alex Example", "Lakeside, Exampleshire"]
+
+    found = extract_contact(plain(rows))
+    within = extract_contact(plain(rows[1:]))
+
+    assert find_sections(plain(rows)) == []
+    assert (found.name, found.location) == (within.name, within.location)
+    assert within.name and within.location
