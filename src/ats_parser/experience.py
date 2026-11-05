@@ -8,7 +8,7 @@ from ats_parser.constants import (
     DATE_PARTS,
     DATE_RANGE,
     MAX_EXPERIENCE_ENTRIES,
-    MONTH_NUMBERS,
+    MONTHS,
     ONGOING,
     TITLE_EDGES,
     TITLE_WORD,
@@ -83,7 +83,7 @@ def _month_number(written: str, *, after: bool = False) -> int | None:
     months = (int(year) + (2000 if len(year) == 2 else 0)) * 12
     if not name and not number:
         return months
-    month = MONTH_NUMBERS[name[:3].casefold()] if name else int(number)
+    month = next(n for n, spellings in enumerate(MONTHS, 1) if spellings.fullmatch(name)) if name else int(number)
     return months + month - 1 + after if 1 <= month <= 12 else None
 
 

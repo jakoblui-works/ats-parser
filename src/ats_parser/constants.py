@@ -148,7 +148,8 @@ LOCAL_PHONE = re.compile(
     r"\b(?:tlf|telefon|mobil|mobile|mob|phone)\b\.?(?: ?nr\.?)?:? ?(?P<number>[1-9]\d(?: ?\d{2}){3})(?![ .-]?\d)",
     re.IGNORECASE,
 )
-YEAR = re.compile(r"(?<!\d)(?:19|20)\d{2}(?!\d)")
+_FULL_YEAR = r"(?:19|20)\d{2}"
+YEAR = re.compile(rf"(?<!\d){_FULL_YEAR}(?!\d)")
 NOT_A_PHONE = re.compile(r"\bisbn\b", re.IGNORECASE)  # An ISBN-10 written without hyphens looks just like a phone.
 LINK = re.compile(
     r"(?<![@\w.-])(?:https?://|www\.|(?:[a-z]{2,3}\.)?(?:linkedin|github|gitlab|bitbucket)\.com/)[^\s|,;<>()\"']{1,200}",
@@ -157,12 +158,24 @@ LINK = re.compile(
 
 # Experience. A date range is what makes a line a job, so a year in a sentence isn't one. Gaps are bounded and nothing
 # nests, so this stays linear. `experience.py` checks that two-digit years pair up.
-_MONTH_NAME = (  # English and Danish
-    r"jan(?:uary?)?|feb(?:ruary?)?|mar(?:ch|ts)?|apr(?:il)?|ma[yj]|jun[ei]?|jul[yi]?|aug(?:ust)?"
-    r"|sep(?:t(?:ember)?)?|o[ck]t(?:ober)?|nov(?:ember)?|dec(?:ember)?"
+_MONTH_SPELLINGS = (  # Each month's English and Danish spellings, January first.
+    r"jan(?:uary?)?",
+    r"feb(?:ruary?)?",
+    r"mar(?:ch|ts)?",
+    r"apr(?:il)?",
+    r"ma[yj]",
+    r"jun[ei]?",
+    r"jul[yi]?",
+    r"aug(?:ust)?",
+    r"sep(?:t(?:ember)?)?",
+    r"o[ck]t(?:ober)?",
+    r"nov(?:ember)?",
+    r"dec(?:ember)?",
 )
+# One pattern per month, so a month name the patterns below matched reads as its number (`experience.py`).
+MONTHS = tuple(re.compile(spellings, re.IGNORECASE) for spellings in _MONTH_SPELLINGS)
+_MONTH_NAME = "|".join(_MONTH_SPELLINGS)
 _GAP = r"\s{1,3}"
-_FULL_YEAR = r"(?:19|20)\d{2}"
 _DATE = (
     # 15 Mar 2026, 15. marts 2026, Mar. 2026, Mar, 2026, Mar 15, 2026
     rf"(?:(?:\d{{1,2}}\.?{_GAP})?(?:{_MONTH_NAME})\.?(?:,?{_GAP}|{_GAP}\d{{1,2}},{_GAP}){_FULL_YEAR}"
@@ -189,9 +202,6 @@ DATE_PARTS = re.compile(
     rf"(\d{{4}})-(\d{{2}})|(?:\d{{1,2}}\.?\s+)?(?:({_MONTH_NAME})\W*(?:\d{{1,2}},\s+)?|(\d{{1,2}})[/.-])?(\d{{2,4}})",
     re.IGNORECASE,
 )
-MONTH_NUMBERS = {
-    name: number for number, name in enumerate("jan feb mar apr may jun jul aug sep oct nov dec".split(), 1)
-} | {"maj": 5, "okt": 10}
 # Separators left around a title once the dates are gone.
 TITLE_EDGES = " ()[]|,;:/-\u2012\u2013\u2014\u2015\u2212\u2022\u00b7"
 TITLE_LINES_ABOVE = 2  # Lines read above and below an entry's dates.
