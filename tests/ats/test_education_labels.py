@@ -187,6 +187,22 @@ def test_a_lone_year_line_ends_the_lines_read_below_the_entry_above_it(lone_year
     ]
 
 
+@given(first=st.integers(1990, 2025), gap=st.integers(1, 10))
+def test_a_line_with_years_that_makes_no_entry_does_not_take_the_line_above_it(first: int, gap: int) -> None:
+    # Two years with no range between make no entry, so they end nothing: the qualification above them stays with
+    # the entry it belongs to, rather than being dropped.
+    lines = [
+        "University of Exampleton",
+        "Sep 2015 - Jun 2017",
+        "MSc Computing",
+        f"Thesis on the {first} and {first + gap} elections",
+    ]
+
+    entries = extract_education(plain(lines))
+
+    assert [(e.institution, e.qualification) for e in entries] == [("University of Exampleton", "MSc Computing")]
+
+
 @given(lone_year=lone_years)
 def test_a_lone_year_line_ends_the_lines_read_above_the_entry_below_it(lone_year: str) -> None:
     # The institution beside the lone year is that entry's, so the entry below, which names only its qualification,
