@@ -18,4 +18,4 @@ def best[T](
         score = sum(weight for has, weight in features if has(candidate))
         if winner is None or score > top:
             winner, top = candidate, score
-    return None if above is not None and top <= above else winner
+    return winner if winner is not None and (above is None or top > above) else None

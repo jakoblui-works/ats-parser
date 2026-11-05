@@ -173,7 +173,8 @@ _MONTH_SPELLINGS = (  # Each month's English and Danish spellings, January first
     r"nov(?:ember)?",
     r"dec(?:ember)?",
 )
-# One pattern per month, so a month name the patterns below matched reads as its number (`experience.py`).
+# One pattern per month, so a month name the patterns below matched reads as its number (`experience.py`). Each
+# spelling must match on its own (no anchors or lookarounds), and no two months may share one.
 MONTHS = tuple(re.compile(spellings, re.IGNORECASE) for spellings in _MONTH_SPELLINGS)
 _MONTH_NAME = "|".join(_MONTH_SPELLINGS)
 _GAP = r"\s{1,3}"

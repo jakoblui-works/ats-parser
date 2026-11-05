@@ -33,13 +33,13 @@ from ats_parser.sections import heading_kind
 
 
 def extract_contact(lines: list[Line]) -> Contact:
-    capped = [line.capped for line in lines]
-    links = [link.rstrip(".:") for line in capped for link in LINK.findall(line)]
+    texts = [line.capped for line in lines]
+    links = [link.rstrip(".:") for line in texts for link in LINK.findall(line)]
     name = _find_name(lines)
     return Contact(
         name=name,
-        email=next((match.group() for line in capped if (match := EMAIL.search(line))), None),
-        phone=next((phone for line in capped if (phone := _find_phone(line))), None),
+        email=next((match.group() for line in texts if (match := EMAIL.search(line))), None),
+        phone=next((phone for line in texts if (phone := _find_phone(line))), None),
         links=list(dict.fromkeys(link for link in links if not EMAIL.fullmatch(link)))[:MAX_LINKS],
         location=_find_location(lines, name),
     )
