@@ -7,11 +7,11 @@ from collections.abc import Callable
 from ats_parser.constants import (
     BULLETS,
     DATE_RANGE,
+    ENTRY_LINES_AROUND,
     ENTRY_SEPARATOR,
     MAX_ENTRY_CHARS,
     MIN_SENTENCE_WORDS,
     TITLE_EDGES,
-    TITLE_LINES_ABOVE,
 )
 from ats_parser.extraction import Line
 from ats_parser.fields import looks_like_place
@@ -85,7 +85,7 @@ def lines_below(lines: list[str], *, titles_above_dates: bool) -> list[str]:
     """The usable lines starting `lines`, stopping as `lines_above` does. Where entries are named above their dates
     (`titles_above_dates`), a line just above the next dates is that entry's, so it stops there too."""
     usable: list[str] = []
-    for position, line in enumerate(lines[:TITLE_LINES_ABOVE]):
+    for position, line in enumerate(lines[:ENTRY_LINES_AROUND]):
         if is_section_break(line):
             break
         below = line.strip()
@@ -105,8 +105,8 @@ def entry_candidates(lines: list[str], index: int, beside: str | None, *, above:
     entry's), and the lines just below."""
     texts = [beside] if beside else []
     if above:
-        texts += lines_above(lines[max(0, index - TITLE_LINES_ABOVE) : index])
-    texts += lines_below(lines[index + 1 : index + 2 + TITLE_LINES_ABOVE], titles_above_dates=above)
+        texts += lines_above(lines[max(0, index - ENTRY_LINES_AROUND) : index])
+    texts += lines_below(lines[index + 1 : index + 2 + ENTRY_LINES_AROUND], titles_above_dates=above)
     parts = [part.strip(TITLE_EDGES) for text in texts for part in ENTRY_SEPARATOR.split(text)]
     return [part for part in parts if is_entry_text(part)]
 
@@ -114,7 +114,7 @@ def entry_candidates(lines: list[str], index: int, beside: str | None, *, above:
 def starts_with_dates(lines: list[str], index: int, beside: str | None) -> bool:
     """Whether a section's first entry, dated on `lines[index]`, has nothing beside or above its dates. Then each
     entry's lines follow its dates, and the lines above the next dates are this entry's, so they can't name that one."""
-    return not beside and not lines_above(lines[max(0, index - TITLE_LINES_ABOVE) : index])
+    return not beside and not lines_above(lines[max(0, index - ENTRY_LINES_AROUND) : index])
 
 
 def pick_two(

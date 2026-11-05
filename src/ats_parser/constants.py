@@ -1,4 +1,5 @@
-"""The parser's limits and lists, all in one place. Nothing here comes from settings."""
+"""The parser's limits and the lists its stages share. A stage's private patterns stay with it. Nothing here comes from
+settings."""
 
 import re
 
@@ -204,7 +205,8 @@ DATE_PARTS = re.compile(
 )
 # Separators left around a title once the dates are gone.
 TITLE_EDGES = " ()[]|,;:/-\u2012\u2013\u2014\u2015\u2212\u2022\u00b7"
-TITLE_LINES_ABOVE = 2  # Lines read above and below an entry's dates.
+# How many lines an entry reads on each side of its dates: titles above them, and the lines below.
+ENTRY_LINES_AROUND = 2
 # A line ending in a full stop is a sentence from this many words; shorter, it's a name (`Example Widgets Inc.`).
 MIN_SENTENCE_WORDS = 5
 # A line starting like this, or ending in a full stop, is a bullet or a sentence: neither a job nor a title.
