@@ -6,6 +6,7 @@ which no reasonable list would hold.
 """
 
 from hypothesis import given
+from hypothesis import strategies as st
 
 from ats_parser.education import extract_education
 from ats_parser.schemas import Education
@@ -162,3 +163,39 @@ def test_a_blank_or_whitespace_only_line_stops_the_lines_read_above_and_below_th
         entries = extract_education(plain(lines))
 
         assert [(e.institution, e.qualification, e.start) for e in entries] == [(None, None, "Sep 2015")]
+
+
+# --- A lone year is dates in education, so it bounds a neighbour's lines as a date range does ---
+
+# A year alone, as education reads one: bare, or with its month.
+lone_years = st.tuples(st.sampled_from(["{year}", "Jun {year}", "06/{year}"]), st.integers(1990, 2025)).map(
+    lambda form_and_year: form_and_year[0].format(year=form_and_year[1])
+)
+
+
+@given(lone_year=lone_years)
+def test_a_lone_year_line_ends_the_lines_read_below_the_entry_above_it(lone_year: str) -> None:
+    # Named above their dates: the qualification just above the lone year is that entry's, so the entry above,
+    # which names only its institution, gets no qualification from it.
+    lines = ["University of Exampleton", "Sep 2015 - Jun 2017", "MSc Computing", lone_year]
+
+    entries = extract_education(plain(lines))
+
+    assert [(e.institution, e.qualification, e.end) for e in entries] == [
+        ("University of Exampleton", None, "Jun 2017"),
+        (None, "MSc Computing", lone_year[-4:]),
+    ]
+
+
+@given(lone_year=lone_years)
+def test_a_lone_year_line_ends_the_lines_read_above_the_entry_below_it(lone_year: str) -> None:
+    # The institution beside the lone year is that entry's, so the entry below, which names only its qualification,
+    # gets no institution from that line.
+    lines = [f"Example Gymnasium {lone_year}", "BSc Statistics", "Sep 2018 - Jun 2021"]
+
+    entries = extract_education(plain(lines))
+
+    assert [(e.institution, e.qualification, e.end) for e in entries] == [
+        ("Example Gymnasium", None, lone_year[-4:]),
+        (None, "BSc Statistics", "Jun 2021"),
+    ]

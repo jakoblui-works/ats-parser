@@ -1,5 +1,6 @@
 """Jobs from the lines of the experience sections, read as `entries` reads any entry: a line with a date range that can
-be read is one. Its title and employer are picked by their own words, then by elimination (`pick_two`)."""
+be read is one, and any line with a date range ends the lines read around another job's dates. Its title and employer
+are picked by their own words, then by elimination (`pick_two`)."""
 
 from datetime import date
 
@@ -20,7 +21,13 @@ from ats_parser.schemas import Experience
 
 def extract_experience(section_lines: list[Line], today: date) -> list[Experience]:
     lines = [line.capped for line in section_lines]
-    return read_entries(lines, lambda line: _dates_beside(line, today), _experience)[:MAX_EXPERIENCE_ENTRIES]
+    jobs = read_entries(lines, _has_dates, lambda line: _dates_beside(line, today), _experience)
+    return jobs[:MAX_EXPERIENCE_ENTRIES]
+
+
+def _has_dates(line: str) -> bool:
+    """A date range, even one that can't be read."""
+    return bool(DATE_RANGE.search(line))
 
 
 def _dates_beside(line: str, today: date) -> tuple[tuple[str, str, int], str | None] | None:

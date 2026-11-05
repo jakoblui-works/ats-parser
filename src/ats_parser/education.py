@@ -1,5 +1,6 @@
-"""Education entries, read as `entries` reads any entry: a date range or a lone year makes one. The institution and the
-qualification are picked as a job's title and employer are (`pick_two`)."""
+"""Education entries, read as `entries` reads any entry: a date range or a lone year makes one, and any line with a
+date range or a year ends the lines read around another entry's dates. The institution and the qualification are
+picked as a job's title and employer are (`pick_two`)."""
 
 from ats_parser.constants import (
     DATE_RANGE,
@@ -16,7 +17,12 @@ from ats_parser.schemas import Education
 
 def extract_education(section_lines: list[Line]) -> list[Education]:
     lines = [line.capped for line in section_lines]
-    return read_entries(lines, _dates_beside, _education)[:MAX_EDUCATION_ENTRIES]
+    return read_entries(lines, _has_dates, _dates_beside, _education)[:MAX_EDUCATION_ENTRIES]
+
+
+def _has_dates(line: str) -> bool:
+    """A date range or a year, even where `_dates` can't read them, as with two years and no range between."""
+    return bool(DATE_RANGE.search(line) or LONE_YEAR.search(line))
 
 
 def _dates_beside(line: str) -> tuple[tuple[str | None, str], str | None] | None:

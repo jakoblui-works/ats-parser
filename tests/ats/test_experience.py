@@ -446,6 +446,17 @@ def test_a_blank_or_whitespace_only_line_stops_the_lines_read_above_and_below_th
         assert (entry.title, entry.company, entry.start) == (None, None, "Jan 2020")
 
 
+@given(year=st.integers(1990, 2025), form=st.sampled_from(["{year}", "Jun {year}", "06/{year}"]))
+def test_a_line_with_a_lone_year_does_not_end_the_lines_read_around_a_jobs_dates(year: int, form: str) -> None:
+    # Only a date range is a job's dates, so a year alone on a line is just another line: the title past it is read.
+    lone_year = form.format(year=year)
+    for lines in (
+        ["Senior Analyst", lone_year, "Jan 2020 - Mar 2021"],
+        ["Jan 2020 - Mar 2021", lone_year, "Senior Analyst"],
+    ):
+        assert _one(*lines).title == "Senior Analyst", lines
+
+
 # --- Through the parser ---
 
 

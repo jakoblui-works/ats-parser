@@ -1,12 +1,11 @@
-"""Entries from the lines of a section, read the same way for jobs and education: any line with dates is one. Its two
-fields are picked from the texts beside, above or below the dates the way a simple ATS does: by their own words, then
-by elimination."""
+"""Entries from the lines of a section, read the same way for jobs and education: any line with dates is one, by the
+entry kind's own rule for dates, which also bounds the lines read around each entry's dates. Its two fields are picked
+from the texts beside, above or below the dates the way a simple ATS does: by their own words, then by elimination."""
 
 from collections.abc import Callable
 
 from ats_parser.constants import (
     BULLETS,
-    DATE_RANGE,
     ENTRY_LINES_AROUND,
     ENTRY_SEPARATOR,
     MAX_ENTRY_CHARS,
@@ -30,11 +29,15 @@ def is_section_break(text: str) -> bool:
 
 
 def read_entries[D, E](
-    lines: list[str], dated: Callable[[str], tuple[D, str | None] | None], entry: Callable[[list[str], D], E]
+    lines: list[str],
+    has_dates: Callable[[str], bool],
+    dated: Callable[[str], tuple[D, str | None] | None],
+    entry: Callable[[list[str], D], E],
 ) -> list[E]:
-    """One entry per line that `dated` finds dates on. `dated` gets each line that isn't a break or prose, and gives
-    what `entry` needs of the dates and the text beside them, or None for no entry. `entry` builds one from the texts
-    that can name it and those dates."""
+    """One entry per line that `dated` finds dates on. `has_dates` is the kind's rule for a line with dates, read or
+    not: such a line ends the lines read above or below another entry's dates. `dated` gets each line that isn't a
+    break or prose, and gives what `entry` needs of the dates and the text beside them, or None for no entry. `entry`
+    builds one from the texts that can name it and those dates."""
     entries: list[E] = []
     dates_first, section_start = False, True
     for index, line in enumerate(lines):
@@ -46,8 +49,8 @@ def read_entries[D, E](
             continue
         dates, beside = found
         if section_start:
-            dates_first, section_start = starts_with_dates(lines, index, beside), False
-        entries.append(entry(entry_candidates(lines, index, beside, above=not dates_first), dates))
+            dates_first, section_start = starts_with_dates(lines, index, beside, has_dates), False
+        entries.append(entry(entry_candidates(lines, index, beside, has_dates, above=not dates_first), dates))
     return entries
 
 
@@ -64,14 +67,15 @@ def is_prose(line: str) -> bool:
     return stripped.startswith(BULLETS) or (stripped.endswith(".") and len(stripped.split()) >= MIN_SENTENCE_WORDS)
 
 
-def lines_above(lines: list[str]) -> list[str]:
-    """The usable lines ending `lines`, top first, stopping at a bullet, a sentence, dates or a section's start."""
+def lines_above(lines: list[str], has_dates: Callable[[str], bool]) -> list[str]:
+    """The usable lines ending `lines`, top first, stopping at a bullet, a sentence, a line `has_dates` finds dates on
+    or a section's start."""
     usable: list[str] = []
     for line in reversed(lines):
         if is_section_break(line):
             break
         above = line.strip()
-        if is_prose(above) or DATE_RANGE.search(above):
+        if is_prose(above) or has_dates(above):
             break
         if trimmed := above.strip(TITLE_EDGES):
             usable.insert(0, trimmed)
@@ -89,7 +93,7 @@ def is_entry_text(text: str) -> bool:
     )
 
 
-def lines_below(lines: list[str], *, titles_above_dates: bool) -> list[str]:
+def lines_below(lines: list[str], has_dates: Callable[[str], bool], *, titles_above_dates: bool) -> list[str]:
     """The usable lines starting `lines`, stopping as `lines_above` does. Where entries are named above their dates
     (`titles_above_dates`), a line just above the next dates is that entry's, so it stops there too."""
     usable: list[str] = []
@@ -97,32 +101,34 @@ def lines_below(lines: list[str], *, titles_above_dates: bool) -> list[str]:
         if is_section_break(line):
             break
         below = line.strip()
-        if is_prose(below) or DATE_RANGE.search(below):
+        if is_prose(below) or has_dates(below):
             break
         following = lines[position + 1].strip() if position + 1 < len(lines) else ""
-        if titles_above_dates and not is_prose(following) and DATE_RANGE.search(following):
+        if titles_above_dates and not is_prose(following) and has_dates(following):
             break
         if trimmed := below.strip(TITLE_EDGES):
             usable.append(trimmed)
     return usable
 
 
-def entry_candidates(lines: list[str], index: int, beside: str | None, *, above: bool) -> list[str]:
+def entry_candidates(
+    lines: list[str], index: int, beside: str | None, has_dates: Callable[[str], bool], *, above: bool
+) -> list[str]:
     """The texts that can name the entry dated on `lines[index]`: the parts of the text beside its dates, the lines
     just above them (`above`: not in a section whose entries start with their dates, where those are the previous
     entry's), and the lines just below."""
     texts = [beside] if beside else []
     if above:
-        texts += lines_above(lines[max(0, index - ENTRY_LINES_AROUND) : index])
-    texts += lines_below(lines[index + 1 : index + 2 + ENTRY_LINES_AROUND], titles_above_dates=above)
+        texts += lines_above(lines[max(0, index - ENTRY_LINES_AROUND) : index], has_dates)
+    texts += lines_below(lines[index + 1 : index + 2 + ENTRY_LINES_AROUND], has_dates, titles_above_dates=above)
     parts = [part.strip(TITLE_EDGES) for text in texts for part in ENTRY_SEPARATOR.split(text)]
     return [part for part in parts if is_entry_text(part)]
 
 
-def starts_with_dates(lines: list[str], index: int, beside: str | None) -> bool:
+def starts_with_dates(lines: list[str], index: int, beside: str | None, has_dates: Callable[[str], bool]) -> bool:
     """Whether a section's first entry, dated on `lines[index]`, has nothing beside or above its dates. Then each
     entry's lines follow its dates, and the lines above the next dates are this entry's, so they can't name that one."""
-    return not beside and not lines_above(lines[max(0, index - ENTRY_LINES_AROUND) : index])
+    return not beside and not lines_above(lines[max(0, index - ENTRY_LINES_AROUND) : index], has_dates)
 
 
 def pick_two(
