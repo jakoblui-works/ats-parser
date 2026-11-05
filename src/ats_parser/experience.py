@@ -8,7 +8,6 @@ from ats_parser.constants import (
     DATE_PARTS,
     DATE_RANGE,
     MAX_EXPERIENCE_ENTRIES,
-    MAX_LINE_CHARS,
     MONTH_NUMBERS,
     ONGOING,
     TITLE_EDGES,
@@ -21,7 +20,7 @@ from ats_parser.schemas import Experience
 
 
 def extract_experience(section_lines: list[Line], today: date) -> list[Experience]:
-    lines = [line.text[:MAX_LINE_CHARS] for line in section_lines]
+    lines = [line.capped for line in section_lines]
     return read_entries(lines, lambda line: _dates_beside(line, today), _experience)[:MAX_EXPERIENCE_ENTRIES]
 
 

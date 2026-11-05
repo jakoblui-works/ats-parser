@@ -9,7 +9,6 @@ from ats_parser.constants import (
     ENTRY_SEPARATOR,
     LINK,
     LOCAL_PHONE,
-    MAX_LINE_CHARS,
     MAX_LINKS,
     MAX_LOCATION_WORDS,
     MAX_NAME_WORDS,
@@ -34,7 +33,7 @@ from ats_parser.sections import heading_kind
 
 
 def extract_contact(lines: list[Line]) -> Contact:
-    capped = [line.text[:MAX_LINE_CHARS] for line in lines]
+    capped = [line.capped for line in lines]
     links = [link.rstrip(".:") for line in capped for link in LINK.findall(line)]
     name = _find_name(lines)
     return Contact(
@@ -100,13 +99,13 @@ def _name_and_line(lines: list[Line]) -> tuple[int, str] | None:
     indices: list[int] = []
     rows = 0
     for index, line in enumerate(lines):
-        text = line.text[:MAX_LINE_CHARS]
+        text = line.capped
         if heading_kind(text):
             break
         if not any(char.isalpha() for char in text) or not _tidy(text):
             continue
         for piece in (*line.pieces, line):  # A row's pieces first, so a tie goes to a piece.
-            if unlabelled := _tidy(piece.text[:MAX_LINE_CHARS]):
+            if unlabelled := _tidy(piece.capped):
                 name = ENTRY_SEPARATOR.split(unlabelled, maxsplit=1)[0]
                 tops.append(Line(" ".join(name.split()), piece.bold, piece.size))
                 indices.append(index)
@@ -191,9 +190,9 @@ def _find_location(lines: list[Line], name: str | None) -> str | None:
     link, a phone or a heading. A line's parts come before it, so a tie goes to a part."""
     candidates: list[str] = []
     for row in lines:
-        if heading_kind(row.text[:MAX_LINE_CHARS]):
+        if heading_kind(row.capped):
             break
-        for line in (*(piece.text[:MAX_LINE_CHARS] for piece in row.pieces), row.text[:MAX_LINE_CHARS]):
+        for line in (*(piece.capped for piece in row.pieces), row.capped):
             parts = ENTRY_SEPARATOR.split(line)
             # Contact details are told apart as written, since tidying can cut into them (a phone's `(`).
             raw = [*parts, line] if len(parts) > 1 else [line]

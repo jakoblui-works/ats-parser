@@ -14,7 +14,7 @@ from pdfminer.pdfinterp import PDFPageInterpreter, PDFResourceManager
 from pdfminer.pdfpage import PDFPage
 from pdfminer.pdfparser import PDFParser
 
-from ats_parser.constants import MAX_PAGES, MAX_TEXT_CHARS, ROW_TOLERANCE_POINTS, SIZE_CHANGE
+from ats_parser.constants import MAX_LINE_CHARS, MAX_PAGES, MAX_TEXT_CHARS, ROW_TOLERANCE_POINTS, SIZE_CHANGE
 from ats_parser.schemas import RejectionReason
 
 # pdfminer's logs quote the file, CV text included, so none of them go anywhere, whatever the root level is.
@@ -59,6 +59,11 @@ class Line:
     bold: bool
     size: float
     pieces: tuple["Line", ...] = ()
+
+    @property
+    def capped(self) -> str:
+        """The text cut to `MAX_LINE_CHARS`, as the stages read it; sections keep the whole text."""
+        return self.text[:MAX_LINE_CHARS]
 
 
 @dataclass(frozen=True)

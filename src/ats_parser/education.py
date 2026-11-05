@@ -7,7 +7,6 @@ from ats_parser.constants import (
     INSTITUTION,
     LONE_YEAR,
     MAX_EDUCATION_ENTRIES,
-    MAX_LINE_CHARS,
     QUALIFICATION,
 )
 from ats_parser.entries import pick_two, read_entries
@@ -17,7 +16,7 @@ from ats_parser.schemas import Education
 
 
 def extract_education(section_lines: list[Line]) -> list[Education]:
-    lines = [line.text[:MAX_LINE_CHARS] for line in section_lines]
+    lines = [line.capped for line in section_lines]
     return read_entries(lines, _dates_beside, _education)[:MAX_EDUCATION_ENTRIES]
 
 
