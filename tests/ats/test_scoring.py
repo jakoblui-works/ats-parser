@@ -62,3 +62,53 @@ def test_among_alike_candidates_the_first_wins(
     candidates = [(place, key) for place in range(size)]
 
     assert best(candidates, _on_key(features), lambda candidate: True) == (0, key)
+
+
+# --- `above`: a winner must score strictly above it ---
+
+thresholds = st.integers(min_value=-130, max_value=130)
+
+
+@given(keys=keys, features=key_features, required=predicates, above=thresholds)
+def test_with_above_only_a_candidate_scoring_above_it_wins_and_a_tie_goes_to_the_earliest(
+    keys: list[int], features: list[tuple[Callable[[int], bool], int]], required: Callable[[int], bool], above: int
+) -> None:
+    candidates = list(enumerate(keys))
+    scored = _on_key(features)
+    passing = [candidate for candidate in candidates if required(candidate[1])]
+
+    winner = best(candidates, scored, lambda candidate: required(candidate[1]), above=above)
+
+    if not passing or max(_score(candidate, scored) for candidate in passing) <= above:
+        assert winner is None
+        return
+    top = max(_score(candidate, scored) for candidate in passing)
+    assert winner == next(candidate for candidate in passing if _score(candidate, scored) == top)
+
+
+@given(keys=keys.filter(bool), features=key_features)
+def test_above_is_strict_the_top_score_itself_gives_none_and_one_below_it_gives_the_usual_winner(
+    keys: list[int], features: list[tuple[Callable[[int], bool], int]]
+) -> None:
+    candidates = list(enumerate(keys))
+    scored = _on_key(features)
+    top = max(_score(candidate, scored) for candidate in candidates)
+
+    def anything(candidate: Candidate) -> bool:
+        return True
+
+    assert best(candidates, scored, anything, above=top) is None
+    assert best(candidates, scored, anything, above=top - 1) == best(candidates, scored, anything)
+
+
+@given(keys=keys, features=key_features, required=predicates)
+def test_above_none_is_the_same_as_leaving_it_out(
+    keys: list[int], features: list[tuple[Callable[[int], bool], int]], required: Callable[[int], bool]
+) -> None:
+    candidates = list(enumerate(keys))
+    scored = _on_key(features)
+
+    def passes(candidate: Candidate) -> bool:
+        return required(candidate[1])
+
+    assert best(candidates, scored, passes, above=None) == best(candidates, scored, passes)

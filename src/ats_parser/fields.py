@@ -172,7 +172,7 @@ def _has_more_digits_than_a_postcode(text: str) -> bool:
 
 # What a simple ATS looks for in a location: written as a place, maybe with its region or postcode, and short, with
 # nothing that marks contact details or a job. Only the weights' proportions matter, but the winner must score
-# above zero, so a line with nothing for it isn't taken. Read at call time, so they can be swapped.
+# above zero (`best`'s `above`), so a line with nothing for it isn't taken. Read at call time, so they can be swapped.
 LOCATION_FEATURES: list[Feature[str]] = [
     (_is_place_and_region, 3),
     (_is_postcode_and_place, 3),
@@ -208,13 +208,7 @@ def _find_location(lines: list[Line], name: str | None) -> str | None:
             and not heading_kind(text)
         )
 
-    winner = best(candidates, LOCATION_FEATURES, could_be_a_location)
-    return winner if winner is not None and _location_score(winner) > 0 else None
-
-
-def _location_score(text: str) -> int:
-    # The score `best` gives, which it doesn't return.
-    return sum(weight for has, weight in LOCATION_FEATURES if has(text))
+    return best(candidates, LOCATION_FEATURES, could_be_a_location, above=0)
 
 
 def _find_phone(line: str) -> str | None:
