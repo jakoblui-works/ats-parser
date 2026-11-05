@@ -5,9 +5,11 @@ Recognised forms are only those the lists are sure to have. The "contains one" e
 which no reasonable list would hold.
 """
 
+from hypothesis import given
+
 from ats_parser.education import extract_education
 from ats_parser.schemas import Education
-from tests.ats.lines import plain
+from tests.ats.lines import SECTION_BREAKS, plain
 
 DATES = "2011 - 2015"
 INSTITUTION = "Københavns Universitet"
@@ -113,3 +115,50 @@ def test_sections_joined_by_a_blank_line_each_keep_their_own_layout() -> None:
         ("Sample College", "BSc Statistics", "Sep 2011", "Jun 2015"),
         ("Example Gymnasium", "STX", "Aug 2008", "Jun 2011"),
     ]
+
+
+@given(first_break=SECTION_BREAKS, second_break=SECTION_BREAKS)
+def test_sections_joined_by_a_blank_or_whitespace_only_line_keep_their_own_layout_both_ways_round(
+    first_break: str, second_break: str
+) -> None:
+    # The test above, the other way round as well, and with any whitespace on the line between.
+    lines = [
+        # Dates first, then institution and qualification.
+        "Sep 2005 - Jun 2008",
+        "Example Gymnasium",
+        "STX",
+        first_break,
+        # Institution and qualification, then dates, twice.
+        "Sample College",
+        "BSc Statistics",
+        "Sep 2008 - Jun 2011",
+        "University of Exampleton",
+        "MSc Computing",
+        "Sep 2011 - Jun 2013",
+        second_break,
+        # Dates first again.
+        "Sep 2013 - Jun 2016",
+        "Demo Institute",
+        "PhD Data Science",
+    ]
+
+    entries = extract_education(plain(lines))
+
+    assert [(e.institution, e.qualification, e.start) for e in entries] == [
+        ("Example Gymnasium", "STX", "Sep 2005"),
+        ("Sample College", "BSc Statistics", "Sep 2008"),
+        ("University of Exampleton", "MSc Computing", "Sep 2011"),
+        ("Demo Institute", "PhD Data Science", "Sep 2013"),
+    ]
+
+
+@given(gap=SECTION_BREAKS)
+def test_a_blank_or_whitespace_only_line_stops_the_lines_read_above_and_below_the_dates(gap: str) -> None:
+    # What's past a section's break belongs to another section, so it never names this one's entry.
+    for lines in (
+        ["University of Exampleton", "MSc Computing", gap, "Sep 2015 - Jun 2017"],
+        ["Sep 2015 - Jun 2017", gap, "University of Exampleton", "MSc Computing"],
+    ):
+        entries = extract_education(plain(lines))
+
+        assert [(e.institution, e.qualification, e.start) for e in entries] == [(None, None, "Sep 2015")]

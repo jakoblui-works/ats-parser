@@ -223,7 +223,7 @@ INSTITUTION = re.compile(
     re.IGNORECASE,
 )
 # What a job's or a degree's lines are named by first, as a simple ATS's lists would; with one named, the other is
-# found by elimination (`experience.pick_two`). Position isn't used, since CVs put title and employer either way round.
+# found by elimination (`entries.pick_two`). Position isn't used, since CVs put title and employer either way round.
 # Titles: English as whole words; Danish ones also end a compound (`Projektleder`), but never start one (`Lederskab`).
 TITLE_WORD = re.compile(
     r"\b(?:developer|engineer|programmer|architect|manager|director|head\s+of|consultant|analyst|designer|scientist"
