@@ -25,12 +25,16 @@ logging.getLogger("pdfminer").setLevel(logging.CRITICAL + 1)
 _LAYOUT = LAParams(boxes_flow=None, all_texts=True)
 # Spaces and hyphens that look ordinary to a reader but match nothing: no-break, narrow and non-breaking ones.
 # Soft hyphens are invisible unless a word breaks on them, so they go.
-_LOOKALIKES = str.maketrans({"\u00a0": " ", "\u2007": " ", "\u202f": " ", "\u2010": "-", "\u2011": "-", "\u00ad": None})
+_HYPHEN_LOOKALIKES = "\u2010\u2011"  # Hyphen and non-breaking hyphen.
+_SOFT_HYPHEN = "\u00ad"
+_LOOKALIKES = str.maketrans(
+    {"\u00a0": " ", "\u2007": " ", "\u202f": " "} | dict.fromkeys(_HYPHEN_LOOKALIKES, "-") | {_SOFT_HYPHEN: None}
+)
 # Some fonts map one glyph to several characters: Word's PDFs from macOS give each space as a tab, a carriage return,
 # a space and a no-break space, and each hyphen as a hyphen, a soft hyphen and another hyphen.
 _SPACE_RUN = re.compile(r"\s+")
 # A run of hyphens with a look-alike or soft hyphen in it is one hyphen. Plain `--` stays: punycode domains have it.
-_HYPHEN_RUN = re.compile(r"[-‐‑­]{2,}")
+_HYPHEN_RUN = re.compile(f"[-{_HYPHEN_LOOKALIKES}{_SOFT_HYPHEN}]{{2,}}")
 # A font's name says its weight, after any subset prefix (`ABCDEF+Inter-SemiBold`).
 _BOLD_FONT = re.compile(r"bold|black|heavy", re.IGNORECASE)
 # A PDF name is at most 127 bytes long.
@@ -41,7 +45,7 @@ def _one_hyphen(run: re.Match[str]) -> str:
     characters = set(run.group())
     if characters == {"-"}:
         return run.group()
-    return "" if characters == {"­"} else "-"
+    return "" if characters == {_SOFT_HYPHEN} else "-"
 
 
 class Rejection(Exception):
