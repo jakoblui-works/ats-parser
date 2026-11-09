@@ -1,13 +1,11 @@
 # ats-parser
 
-A pure-Python library (package `src/ats_parser/`) that parses a CV PDF the way a weak ATS would. It is the parser behind ats-web's ATS check, which runs it in the visitor's browser (in a Web Worker, through Pyodide), so a CV never leaves the device.
-
-The only runtime dependency is `pdfminer.six`. pydantic is dev-only, used by `scripts/generate_schema.py`.
+A pure-Python library (package `src/ats_parser/`) that parses a CV PDF the way a weak ATS would. It is the parser behind ats-web's ATS check, which runs it in the visitor's browser through Pyodide, so a CV never leaves the device. The only runtime dependency is `pdfminer.six`; pydantic is dev-only.
 
 ## Commands
 ```sh
 uv sync --locked
-uv run --locked ruff check
+uv run --locked ruff check          # ruff and mypy cover src, tests and scripts
 uv run --locked ruff format --check
 uv run --locked mypy
 uv run --locked pytest
@@ -15,18 +13,10 @@ uv build
 uv run python scripts/generate_schema.py   # after changing the models in schemas.py
 ```
 
-## Entry points
-- `ats_parser.parse_pdf(pdf: bytes)`: returns `Parsed | Rejected` (dataclasses).
-- `ats_parser.parse_pdf_json(pdf: bytes) -> str`: the browser's entry point. `{"outcome": "parsed", "result": ...}` or `{"outcome": "rejected", "reason": ...}`.
-- Limits: the parser rejects more than `MAX_PAGES` pages (`too_many_pages`), caps its own work (`MAX_TEXT_CHARS`, `MAX_LINE_CHARS`, `MAX_LINKS`, `MAX_EXPERIENCE_ENTRIES`, `MAX_EDUCATION_ENTRIES`) and turns a `MemoryError` into `corrupt`. It doesn't check file size (`MAX_FILE_BYTES` is for the host to enforce) and has no time or memory limit, so the host must enforce the size and bound the call (the host here is ats-web, which must enforce the file size, bound the call with a timeout and terminate the runtime on timeout).
-- `parse_pdf_json` returns an outcome for any bytes. An exception is a parser bug; the hostile-input and contract tests rely on that.
-
-## Contract
-`schema/parse_outcome.schema.json` is generated from the models, committed, and checked by `tests/test_outcome_contract.py`. ats-web generates its zod types from the released schema, so a model change is a contract change: regenerate the schema in the same change.
-
-`RejectionReason` includes `timed_out`, and it is in the published schema, but the parser never returns it: it is for the host, which applies its own timeout. Removing it is a contract change.
-
-The parser never produces the warnings `scrambled_order` and `unparsed_dates`, or `ParseResult.skills`: they are left from the first build, cut back on 2026-11-01, and the fields stay in the contract, empty. ats-web has copy for the two warnings (`parse-result.tsx`) and shows no `skills`; the field is only in its generated type, its test fixtures and the upload page's example result (`example-result.ts`). Removing them is a contract change: a new contract version and an ats-web pin bump.
+## Where things go
+- `src/ats_parser/`: the parser; `parse_pdf` and `parse_pdf_json` (the browser's entry point) in `parser.py`, models in `schemas.py`, limits and shared lists in `constants.py`.
+- `schema/parse_outcome.schema.json`: generated from the models, committed.
+- `tests/`: tests; `scripts/`: the schema generator.
 
 ## Design rule: what a recruiter sees in a basic ATS
 The parser shows what a recruiter might see when a CV arrives in a basic ATS, using a basic parser's plain, well-known methods; ats-web shows what came out and asks the visitor to check it. It's weaker than commercial ATSs because it's simple, so "passes here, probably passes everywhere".
@@ -36,14 +26,14 @@ The parser shows what a recruiter might see when a CV arrives in a basic ATS, us
 - Job titles and employers, institutions and qualifications are named by their own words first, then the other by elimination from the texts left (a place is the last choice). With neither named, both stay empty.
 
 ## Rules
-- Ruff (line length 120, rules E, F, I, ANN) and mypy strict; both cover `src`, `tests`, `scripts`. Python 3.13, uv.
-- The parser must also support Pyodide's Python (3.14 for Pyodide 314.x), which CI tests alongside 3.13; the wheel is built and released from the 3.13 job only.
-- Tests test behaviour, not tuning: no hard-coded scores or constants. Use Hypothesis for properties where it fits.
+- Never put CV text in logs, exception messages, prints or test failure output. `tests/ats/test_privacy.py` checks logs via `caplog`. pdfminer's logger is silenced on purpose (`extraction.py`); keep it. A check meant for files that aren't invented must fail without printing values, as `_outcome_of` does (`tests/test_outcome_contract.py`).
 - Sample CVs are invented; no real people's data.
-- Never put CV text in logs, exception messages, prints or test failure output. Only logs have a test behind them (`tests/ats/test_privacy.py`, via `caplog`); the rest is a rule. pdfminer's logger is silenced on purpose (`src/ats_parser/extraction.py`, near the top). All test inputs are invented, so failure output never carries a real CV; a check meant to run on files that aren't invented must fail without printing values, as `_outcome_of` does (`pytest.fail(..., pytrace=False)`, `tests/test_outcome_contract.py:65`).
+- The schema is generated, committed and checked: regenerate it in the same change as a model change, which is a contract change.
+- `timed_out`, `scrambled_order`, `unparsed_dates` and `skills` stay in the contract though the parser never produces them. Removing any is a new contract version plus an ats-web pin bump.
+- The host must enforce the file size and bound the call with a timeout. `parse_pdf_json` returns an outcome for any bytes; an exception is a bug.
+- The parser must also support Pyodide's Python, which CI tests alongside 3.13; the wheel is built from the 3.13 job only.
 
 ## Releasing
 1. Bump `version` in `pyproject.toml`.
-2. Push a `v<version>` tag.
-3. CI checks that the tag matches the version, runs the checks, smoke-tests the built wheel, and publishes a GitHub release with `ats_parser-<version>-py3-none-any.whl` and `schema/parse_outcome.schema.json`.
-4. ats-web pins a specific release (wheel and schema, by URL and sha256), so a new version reaches the site only when ats-web's pin is bumped.
+2. Push a `v<version>` tag; CI checks it, tests, and publishes the wheel and schema as a GitHub release.
+3. ats-web pins a release by URL and sha256, so it reaches the site only when that pin is bumped.
