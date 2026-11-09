@@ -6,8 +6,7 @@ import re
 from ats_parser.schemas import SectionKind
 
 # Judgement calls: CVs are short, so these only stop abuse.
-# The host (ats-web) enforces the file size before parsing and bounds the call with a timeout; the parser does neither.
-# Over MAX_PAGES pages is rejected as `too_many_pages`; a MemoryError becomes `corrupt`.
+# The host enforces the file size before parsing and bounds the call with a timeout; the parser does neither.
 MAX_FILE_BYTES = 5 * 1024 * 1024
 MAX_PAGES = 10
 
