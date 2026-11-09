@@ -15,6 +15,7 @@ from ats_parser.sections import FoundSection, split_sections
 
 
 def parse_pdf(pdf: bytes) -> Parsed | Rejected:
+    """Parsed or Rejected for any bytes. No time or memory limit, no file size check: the host does both."""
     try:
         extracted = extract_text(pdf)
     except Rejection as rejection:
